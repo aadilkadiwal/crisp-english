@@ -105,6 +105,18 @@ elif [ ! -e "$HS_INIT" ]; then
   # anything you add later survives, and saaf can be removed with one line.
   printf '%s\n' "$LOADER" > "$HS_INIT"
   ok "created $HS_INIT that loads saaf"
+elif [ -L "$HS_INIT" ]; then
+  # A symlink pointing somewhere that is not this project - most often a second
+  # checkout of saaf itself. Appending here would follow the link and write into
+  # THAT project's init.lua, silently editing a different checkout's source file.
+  # Move the link aside instead; whatever it points at is never touched.
+  old_target="$(readlink "$HS_INIT")"
+  backup="$HS_INIT.before-saaf-$(date +%Y%m%d-%H%M%S)"
+  mv "$HS_INIT" "$backup"
+  printf '%s\n' "$LOADER" > "$HS_INIT"
+  ok "created $HS_INIT that loads saaf"
+  warn "an existing symlink was moved aside; it pointed at $old_target"
+  warn "restore it with: mv \"$backup\" \"$HS_INIT\""
 else
   # THE IMPORTANT CASE. An earlier version of these instructions used
   # `ln -sfn ... ~/.hammerspoon/init.lua`, where -f means force: it silently
