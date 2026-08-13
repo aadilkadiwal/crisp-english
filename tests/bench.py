@@ -23,6 +23,7 @@ prompts, so they need different numbers.
 """
 
 import json
+import re
 import statistics
 import sys
 import time
@@ -130,7 +131,7 @@ def _request(model, text, extra_instruction=""):
     return json.loads(buf), t_fix or (time.time() - t0), time.time() - t0
 
 
-def correct(model, text, fast=False):
+def correct(model, text, fast=False, tone="default"):
     """Run the REAL corrector, so the suite tests what actually ships.
 
     This used to hold its own copy of the prompt and retry logic, which meant a
@@ -145,7 +146,7 @@ def correct(model, text, fast=False):
         return _request(model, text)
 
     corrector.MODEL = model                 # score whichever model was asked for
-    result = corrector.correct(text, fast=fast)
+    result = corrector.correct(text, fast=fast, tone=tone)
     secs = result.get("seconds", 0)
     return result, secs, secs
 
@@ -180,6 +181,17 @@ def check(case, result):
         for b in ["kindly", "revert back", "circle back", "leverage", "utilize"]:
             if b in result[f].lower():
                 fails.append(f"banned {b!r} in {f}")
+    # Numbers survive reformatting: the model writes 45000 as "45,000", which is
+    # the same fact. Compare digits only, so formatting passes and a dropped or
+    # altered number still fails.
+    for s in case.get("must_contain_digits", []):
+        if s not in re.sub(r"[^0-9]", "", fix):
+            fails.append(f"missing the number {s!r}")
+
+    # The brief tone is the one assertion that cannot be a substring check: it is
+    # about how much was cut, not which words survived.
+    if "max_words" in case and len(fix.split()) > case["max_words"]:
+        fails.append(f"{len(fix.split())} words, expected <= {case['max_words']}")
     if not fix.strip():
         fails.append("empty fix")
     return fails
@@ -195,10 +207,20 @@ def run_suite(model, fast):
         print(f"  UNAVAILABLE: {e}")
         return None
 
+    # Tone is a single-answer concept: it replaces the fix/natural/short
+    # dimension rather than stacking on it, so corrector.correct() forces fast
+    # mode for any non-default tone. Scoring those cases in variants mode would
+    # be scoring fast mode twice and reporting it under the wrong heading.
+    cases = [c for c in CASES if fast or c.get("tone", "default") == "default"]
+    skipped = len(CASES) - len(cases)
+    if skipped:
+        print(f"  {skipped} tone case(s) skipped: tone applies to fast mode only\n")
+
     passed, fix_times, tot_times = 0, [], []
-    for case in CASES:
+    for case in cases:
         try:
-            r, t_fix, t_tot = correct(model, case["text"], fast=fast)
+            r, t_fix, t_tot = correct(model, case["text"], fast=fast,
+                                      tone=case.get("tone", "default"))
         except Exception as e:
             print(f"  ✗ {case['id']:32} ERROR {e}")
             continue
@@ -215,7 +237,7 @@ def run_suite(model, fast):
 
     if not fix_times:
         return None
-    return dict(label=label, passed=passed, total=len(CASES),
+    return dict(label=label, passed=passed, total=len(cases),
                 fix=statistics.median(fix_times),
                 tot=statistics.median(tot_times))
 

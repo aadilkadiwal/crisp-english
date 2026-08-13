@@ -276,6 +276,43 @@ def clean(text):
     return text[:1].upper() + text[1:] if text else text
 
 
+# Currency markers the model likes to add to a bare number.
+CURRENCY_SYMBOLS = ["$", "₹", "€", "£", "¥"]
+CURRENCY_WORDS = ["USD", "INR", "EUR", "GBP", "Rs.", "Rs", "dollars", "rupees",
+                  "euros", "pounds"]
+
+
+def strip_invented_currency(original, corrected):
+    """Remove a currency the writer never wrote.
+
+    Measured: for "i has send the invoice for 45000", the model returned
+    "$45,000" in 8 runs out of 8, in every tone. That is not a formatting
+    choice - it is a claim about the money, and for an invoice written in
+    Mumbai it is the wrong claim. "Never invent a name, date, or number" has to
+    cover the currency attached to the number, or the rule protects nothing.
+
+    Prompting was not considered: this file exists because benchmarking showed
+    the model ignores prompt-level bans about a third of the time. A wrong
+    currency in an invoice is not a failure worth being wrong about a third of
+    the time.
+
+    Only markers ABSENT from the original are stripped, so a writer who typed
+    "$45,000" or "Rs 45000" keeps exactly what they typed.
+    """
+    out = corrected
+    for sym in CURRENCY_SYMBOLS:
+        if sym not in original and sym in out:
+            out = out.replace(sym, "")
+    low = original.lower()
+    for word in CURRENCY_WORDS:
+        if word.lower() not in low:
+            out = re.sub(rf"\s*\b{re.escape(word)}\b", "", out, flags=re.IGNORECASE)
+    # deletions leave doubled spaces and orphaned space-before-punctuation
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"\s+([,.!?;:])", r"\1", out)
+    return out.strip()
+
+
 def violations(text):
     """Words a model retry can plausibly remove. Empty list means the text passes."""
     low = text.lower()

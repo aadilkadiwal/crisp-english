@@ -23,6 +23,24 @@ local ICON = {
   busy     = "◈",   -- correcting right now
 }
 
+-- Who the message is going to. Names must match TONES in corrector.py.
+-- Ordered by how often they are wanted, not alphabetically.
+local TONES = {
+  { id = "default", label = "Colleague",
+    hint = "normal work register - contractions, brief" },
+  { id = "formal",  label = "Client or senior",
+    hint = "complete sentences, no contractions" },
+  { id = "brief",   label = "Slack / WhatsApp",
+    hint = "fewest words that stay polite" },
+}
+
+local function toneLabel(id)
+  for _, t in ipairs(TONES) do
+    if t.id == id then return t.label end
+  end
+  return id
+end
+
 function M.attach(state)
   local bar = hs.menubar.new()
   if not bar then
@@ -39,9 +57,16 @@ function M.attach(state)
 
   local function render()
     bar:setTitle(icon())
-    bar:setTooltip(state.enabled
-      and ("saaf - " .. (warm and "ready" or "model asleep, next one is slow"))
-      or "saaf - off")
+    if not state.enabled then
+      bar:setTooltip("saaf - off")
+      return
+    end
+    -- The tone is in the tooltip because leaving it on "Client or senior" and
+    -- forgetting is the obvious way to be surprised by an output. Hovering
+    -- answers it without opening the menu.
+    bar:setTooltip(string.format("saaf - %s - writing for: %s",
+      warm and "ready" or "model asleep, next one is slow",
+      toneLabel(state.tone)))
   end
 
   -- Ask Ollama what is resident. Async, so a hung or absent Ollama never stalls
@@ -146,6 +171,23 @@ function M.attach(state)
       if not warm then
         table.insert(menu, { title = "   Wake it now", fn = warmNow })
       end
+      -- Writing for, as a submenu. A submenu rather than three top-level rows
+      -- because the current choice matters more than the options: the parent row
+      -- always shows which one is active without opening anything.
+      local toneMenu = {}
+      for _, t in ipairs(TONES) do
+        table.insert(toneMenu, {
+          title = t.label .. "   -   " .. t.hint,
+          checked = (state.tone == t.id),
+          fn = function()
+            state.tone = t.id
+            render()
+          end,
+        })
+      end
+      table.insert(menu, { title = "Writing for: " .. toneLabel(state.tone),
+                           menu = toneMenu })
+
       table.insert(menu, {
         title = "Show what changed on screen",
         checked = state.showAlerts,

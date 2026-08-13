@@ -136,4 +136,53 @@ CASES = [
         must_not_contain=BANNED + ["Dear", "Regards", "Best regards"],
         note="must not invent greetings, sign-offs, or certainty the writer did not express",
     ),
+
+    # --- tone cases: audience changes the register, not the meaning ----------
+    # Each tone gets a case that asserts what makes it that tone, plus one that
+    # asserts the tone did NOT license dropping information. A tone that quietly
+    # loses a fact is worse than no tone at all.
+    dict(
+        id="tone_formal_no_contractions",
+        text="i has send the mail yesterday and i will share the report by monday",
+        tone="formal",
+        must_not_contain=["I'll", "I've", "don't", "can't", "won't", "it's", "I'm"],
+        check_field="natural",
+        note="formal is for a client: complete sentences, no contractions",
+    ),
+    dict(
+        id="tone_formal_keeps_facts",
+        text="i has send the invoice for 45000 to priya yesterday, pls confirm receipt",
+        tone="formal",
+        must_contain=["Priya"],
+        # Digits only, so "45,000" passes and "$45,000" does not. The model added
+        # a dollar sign in 8 runs out of 8 - a bare number written in Mumbai is
+        # not dollars, and inventing the currency is inventing a fact about money.
+        must_contain_digits=["45000"],
+        must_not_contain=["kindly", "pls", "$", "USD", "dollars"],
+        check_field="natural",
+        note="a change of register must never drop a number or name, and must "
+             "never attach a currency the writer did not write",
+    ),
+    dict(
+        id="tone_brief_actually_shorter",
+        text=("hi sir, i just wanted to quickly check in with you regarding the "
+              "deployment that we discussed about in yesterday meeting, i has "
+              "completed the changes and pushed it to staging, so whenever you get "
+              "some time please can you kindly review it and let me know your "
+              "feedback on the same"),
+        tone="brief",
+        max_words=30,
+        must_not_contain=["kindly", "discussed about"],
+        check_field="natural",
+        note="brief must genuinely cut: 52 words in, and the default register "
+             "returns about 37, so anything near that is the tone being ignored",
+    ),
+    dict(
+        id="tone_brief_keeps_the_number",
+        text="the build is failing on 3 of the tests, i think it is the token expiry",
+        tone="brief",
+        must_contain=["3"],
+        check_field="natural",
+        note="shortening is not licence to drop the detail that makes it actionable",
+    ),
 ]

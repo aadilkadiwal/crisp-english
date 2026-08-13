@@ -73,6 +73,10 @@ local COPY_WAIT = 0.25
 local state = {
   enabled = true,
   showAlerts = false,
+  -- Who the message is going to. Names must match the TONES table in
+  -- corrector.py; an unknown one degrades to default there rather than failing,
+  -- so a mismatch can never break the hotkey.
+  tone = "default",
   ollama = OLLAMA,
   model = os.getenv("SAAF_MODEL") or "qwen3:4b",
   project = PROJECT,
@@ -236,7 +240,12 @@ local function saaf()
     -- nothing about hotkeys or clipboards, so it stays testable on its own.
     -- --fast asks for one variant instead of three, which is genuinely quicker
     -- rather than just skipping a popup: fewer output tokens, shorter generation.
-    local argv = { PROJECT .. "/corrector.py", "--json", "--fast", original }
+    local argv = { PROJECT .. "/corrector.py", "--json", "--fast" }
+    if state.tone and state.tone ~= "default" then
+      table.insert(argv, "--tone")
+      table.insert(argv, state.tone)
+    end
+    table.insert(argv, original)     -- the text must stay the last argument
 
     local task = hs.task.new(PYTHON, function(exitCode, stdout, stderr)
       inFlight = false

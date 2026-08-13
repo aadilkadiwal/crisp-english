@@ -2,6 +2,9 @@
 """saaf - correct English in work messages, locally.
 
     saaf "i has send the mail yesterday"     three suggestions, human readable
+    saaf --fast "..."                        one suggestion, what the hotkey uses
+    saaf --formal "..."                      for a client or someone senior
+    saaf --brief "..."                       for Slack or WhatsApp, fewest words
     saaf --json "..."                        machine readable, for the hotkey
     saaf stats                               your most frequent mistakes
 
@@ -112,6 +115,29 @@ Contractions are fine.
 Return JSON: natural (the corrected message), notes (up to 2 short names of the
 grammar rules he broke, [] if none)."""
 
+# Who the message is going to. This is the dimension the three variants never
+# covered: fix/natural/short are three flavours of ONE register, but "the same
+# message, for a client" is a different question entirely.
+#
+# Kept to three because each one has to be worth a prompt line and a test case.
+# An audience that cannot be described in a sentence is not a real audience, it
+# is a preference, and preferences belong in how you write the message.
+TONES = {
+    # The register everything was tuned for: a peer on your own team.
+    "default": "",
+
+    "formal": (
+        "\n\nThis message is going to a client or someone senior outside his team. "
+        "Use complete sentences and no contractions - write \"I will\", not \"I'll\". "
+        "Keep it precise and respectful. Do NOT add greetings, sign-offs, apologies, "
+        "or flattery he did not write, and do not make it longer than it needs to be."),
+
+    "brief": (
+        "\n\nCut this to the fewest words that stay polite and complete - it is going "
+        "to Slack or WhatsApp. Drop anything that does not change the meaning. "
+        "Two short sentences at most. Never drop a fact, a number, or a name."),
+}
+
 
 class SaafError(Exception):
     """Anything the user needs to be told about, in words they can act on."""
@@ -134,10 +160,12 @@ def _ollama_state():
         m.get("name") == MODEL or m.get("model") == MODEL for m in models)
 
 
-def _request(text, extra="", fast=False, timeout=TIMEOUT_WARM):
+def _request(text, extra="", fast=False, timeout=TIMEOUT_WARM, tone="default"):
     body = {
         "model": MODEL,
-        "system": (FAST_SYSTEM if fast else SYSTEM) + extra,
+        # The tone fragment goes before `extra`, so a blocklist retry instruction
+        # stays the last thing the model reads.
+        "system": (FAST_SYSTEM if fast else SYSTEM) + TONES.get(tone, "") + extra,
         "prompt": text,
         "stream": False,
         "think": False,
@@ -173,13 +201,29 @@ def _request(text, extra="", fast=False, timeout=TIMEOUT_WARM):
         raise SaafError("Model returned unreadable output. Try again.")
 
 
-def correct(text, fast=False):
+def correct(text, fast=False, tone="default"):
     """Correct text. Returns dict with fix, natural, short, notes, hints, seconds.
 
     fast=True asks for only the `natural` variant, for the instant hotkey that
     pastes without showing a chooser. The other fields are filled from it so
     callers do not need to care which mode produced the result.
+
+    tone selects who the message is going to; see TONES. It only ever appends a
+    sentence to the system prompt, so an unknown tone degrades to the default
+    rather than failing - the hotkey should never break because a menu item and
+    this file disagree about a name.
+
+    tone applies to fast mode ONLY, and that is a design constraint rather than
+    an omission. The three-variant prompt already defines three registers, and
+    it says "Contractions are good: I'll, don't, can't" while the formal tone
+    says the opposite; measured, the variant definition wins and the tone is
+    quietly ignored. Layering an audience on top of three registers asks the
+    model to run two register systems at once. Tone REPLACES that dimension -
+    one answer, written for one reader - so anything but the default forces
+    single-variant mode.
     """
+    if tone != "default":
+        fast = True
     text = text.strip()
     if not text:
         raise SaafError("Nothing selected.")
@@ -193,8 +237,9 @@ def correct(text, fast=False):
     t0 = time.time()
 
     if fast:
-        r = _request(text, fast=True, timeout=timeout)
-        best = blocklist.clean(r.get("natural", "")) or text
+        r = _request(text, fast=True, timeout=timeout, tone=tone)
+        best = blocklist.strip_invented_currency(
+            text, blocklist.clean(r.get("natural", ""))) or text
         out = {
             "fix": best, "natural": best, "short": best,
             "notes": _plausible_notes(r.get("notes", []), text),
@@ -203,6 +248,7 @@ def correct(text, fast=False):
             "changes": {"natural": _changes(text, best, limit=4)},
             "best": best,
             "seconds": round(time.time() - t0, 2),
+            "tone": tone,
             "fast": True,
         }
         # Instant mode is the common path, so it must feed the mistake log too -
@@ -211,10 +257,11 @@ def correct(text, fast=False):
         _log(text, out)
         return out
 
-    result = _request(text, timeout=timeout)
+    result = _request(text, timeout=timeout, tone=tone)
 
     for f in FIELDS:
-        result[f] = blocklist.clean(result.get(f, ""))
+        result[f] = blocklist.strip_invented_currency(
+            text, blocklist.clean(result.get(f, "")))
 
     # One retry for words that have a real meaning but no safe swap. Measured to
     # work: "leverage the API to facilitate onboarding" -> "use the API to speed up
@@ -223,12 +270,13 @@ def correct(text, fast=False):
     if bad:
         named = ", ".join(f'"{b}"' for b in bad)
         try:
-            retry = _request(text, timeout=TIMEOUT_WARM, extra=(
+            retry = _request(text, timeout=TIMEOUT_WARM, tone=tone, extra=(
                 f"\n\nYour previous attempt used {named}, which is forbidden. "
                 "Rewrite so those words are not needed at all. Do not swap them for "
                 "synonyms, restructure the sentence."))
             for f in FIELDS:
-                retry[f] = blocklist.clean(retry.get(f, ""))
+                retry[f] = blocklist.strip_invented_currency(
+                    text, blocklist.clean(retry.get(f, "")))
             if len(blocklist.violations(retry["fix"])) < len(blocklist.violations(result["fix"])):
                 result = retry
         except SaafError:
@@ -253,6 +301,7 @@ def correct(text, fast=False):
         "natural": _changes(result["fix"], result["natural"]),
         "short": _changes(result["fix"], result["short"]),
     }
+    result["tone"] = tone
     result["best"] = result["natural"]
     result["seconds"] = round(time.time() - t0, 2)
     _log(text, result)
@@ -384,11 +433,36 @@ def main(argv):
 
     as_json = "--json" in argv
     fast = "--fast" in argv
-    args = [a for a in argv if a not in ("--json", "--fast")]
+
+    # --tone NAME, or the shorthand --formal / --brief. The shorthand exists
+    # because the long form is three extra words to type for the two audiences
+    # that are not the default.
+    tone = "default"
+    args, i = [], 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--json", "--fast"):
+            pass
+        elif a == "--tone" and i + 1 < len(argv):
+            tone = argv[i + 1]
+            i += 1
+        elif a.startswith("--tone="):
+            tone = a.split("=", 1)[1]
+        elif a in ("--formal", "--brief"):
+            tone = a.lstrip("-")
+        else:
+            args.append(a)
+        i += 1
+
+    if tone not in TONES:
+        print(f"error: unknown tone {tone!r}. Choose one of: "
+              f"{', '.join(TONES)}", file=sys.stderr)
+        return 1
+
     text = " ".join(args) if args else sys.stdin.read()
 
     try:
-        r = correct(text, fast=fast)
+        r = correct(text, fast=fast, tone=tone)
     except SaafError as e:
         if as_json:
             print(json.dumps({"error": str(e)}))
@@ -402,6 +476,9 @@ def main(argv):
 
     print()
     if r.get("fast"):
+        if tone != "default" and not fast:
+            # Say so rather than silently changing what was asked for.
+            print(f"  (one answer, written for: {tone})\n")
         print(f"  {r['best']}")
     else:
         for i, f in enumerate(("natural", "fix", "short"), 1):
@@ -410,7 +487,8 @@ def main(argv):
         print(f"\n  rules you broke: {' | '.join(r['notes'])}")
     for h in r["hints"]:
         print(f"\n  heads up: {h}")
-    print(f"\n  {r['seconds']}s · {MODEL} · nothing left this Mac\n")
+    tone_note = "" if tone == "default" else f" · {tone}"
+    print(f"\n  {r['seconds']}s · {MODEL}{tone_note} · nothing left this Mac\n")
     return 0
 
 
