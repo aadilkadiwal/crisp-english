@@ -27,6 +27,19 @@ local HOTKEY_KEY = "p"
 -- it exists so this file can be tested without clicking through a menu.
 require("hs.ipc")
 
+-- Hide Hammerspoon's own hammer from the menu bar.
+--
+-- Two reasons. It is redundant: saaf's icon reports the same "is this loaded and
+-- working" that the hammer did, and adds status the hammer never had. And on a
+-- notched display it was actively harmful - measured on a 14" screen, the hammer
+-- occupied the last slot clear of the notch and pushed saaf's icon to x=814,
+-- inside the 656-856 notch region, where macOS draws it behind the camera
+-- housing: present, correct, and completely invisible. Hiding the hammer moved
+-- saaf to x=885 and back into view.
+--
+-- Hammerspoon's own menu is still reachable by launching the app again.
+hs.menuIcon(false)
+
 -- Where this file actually lives. Discovered, never assumed.
 --
 -- This was hardcoded to ~/Desktop/Project/Personal/saaf, which worked on exactly
