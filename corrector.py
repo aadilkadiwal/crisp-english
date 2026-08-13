@@ -69,8 +69,11 @@ Grammar rules he breaks often - apply them:
 - "myself Aadil" is not an English introduction; write "I am Aadil".
 - Do not drop articles: "come to office" -> "come to the office".
 
-NEVER add greetings, sign-offs, or facts he did not write. Never add certainty he
-did not express. Never invent a name, date, or number."""
+NEVER add greetings, sign-offs, or facts he did not write, and NEVER delete ones he
+did write - if he wrote "hi sir" or "thanks", they stay. Never add certainty he did
+not express. Never invent a name, date, or number.
+Preserve his line breaks and blank lines exactly. Four short paragraphs in means
+four short paragraphs out."""
 
 SCHEMA = {
     "type": "object",
@@ -108,6 +111,9 @@ FAST_SYSTEM = """Correct the English in this work message from an Indian softwar
 
 Write it as a real person would type it at work. Correct, plain, and brief.
 Keep his meaning. Never add greetings, sign-offs, facts, or certainty he did not write.
+Never delete or reword a greeting or sign-off he DID write; copy it through unchanged.
+Keep his line breaks and blank lines exactly where they are. A message written as
+four short paragraphs must come back as four short paragraphs, not one.
 Do not sound like AI: no "Additionally", "Furthermore", "Moreover", no em dashes,
 no "provide clarification" (say "clarify"), no "Looking forward to hearing from you".
 Contractions are fine.
@@ -132,11 +138,19 @@ TONES = {
         "Keep it precise and respectful. Do NOT add greetings, sign-offs, apologies, "
         "or flattery he did not write, and do not make it longer than it needs to be."),
 
-    "brief": (
-        "\n\nCut this to the fewest words that stay polite and complete - it is going "
-        "to Slack or WhatsApp. Drop anything that does not change the meaning. "
-        "Two short sentences at most. Never drop a fact, a number, or a name."),
+    # Deliberately empty: brief is served by the three-variant prompt's `short`
+    # field, not by a fragment of its own. Three attempts at a fragment all
+    # failed on a 52-word message - "fewest words" gave 39, and an explicit
+    # "AT MOST 25 words, count them" gave 50, 28, 50. The `short` field of the
+    # full prompt gave 18, 17, 16 on the same input, and has been passing the
+    # suite since the beginning. Reusing a proven prompt beats tuning a new one.
+    # See correct(), which routes this tone accordingly.
+    "brief": "",
 }
+
+# Tones that need the full three-variant prompt rather than the lean one, because
+# the answer they want is a field that prompt already produces well.
+TONES_VIA_VARIANTS = {"brief": "short"}
 
 
 class SaafError(Exception):
@@ -213,17 +227,22 @@ def correct(text, fast=False, tone="default"):
     rather than failing - the hotkey should never break because a menu item and
     this file disagree about a name.
 
-    tone applies to fast mode ONLY, and that is a design constraint rather than
-    an omission. The three-variant prompt already defines three registers, and
-    it says "Contractions are good: I'll, don't, can't" while the formal tone
-    says the opposite; measured, the variant definition wins and the tone is
-    quietly ignored. Layering an audience on top of three registers asks the
-    model to run two register systems at once. Tone REPLACES that dimension -
-    one answer, written for one reader - so anything but the default forces
-    single-variant mode.
+    Each tone is produced by whichever prompt does it best, and the caller does
+    not need to know which:
+
+      formal  the lean prompt plus a fragment. Forces single-answer mode: the
+              three-variant prompt says "Contractions are good: I'll, don't,
+              can't" while formal says the opposite, and measured, the variant
+              definition wins and the tone is silently ignored. Layering an
+              audience over three registers asks for two register systems at
+              once, so tone replaces that dimension instead.
+      brief   the full three-variant prompt, returning its `short` field. Costs
+              about a second more and is worth it - see TONES for the numbers.
     """
-    if tone != "default":
-        fast = True
+    if tone in TONES_VIA_VARIANTS:
+        fast = False               # this tone needs the three-variant prompt
+    elif tone != "default":
+        fast = True                # every other tone is a single answer
     text = text.strip()
     if not text:
         raise SaafError("Nothing selected.")
@@ -238,8 +257,10 @@ def correct(text, fast=False, tone="default"):
 
     if fast:
         r = _request(text, fast=True, timeout=timeout, tone=tone)
-        best = blocklist.strip_invented_currency(
-            text, blocklist.clean(r.get("natural", ""))) or text
+        # Order matters: undo model typos first, so clean() then fixes the case
+        # of anything restored, and the currency check sees the final wording.
+        best = blocklist.strip_invented_currency(text, blocklist.clean(
+            blocklist.restore_mangled_words(text, r.get("natural", "")))) or text
         out = {
             "fix": best, "natural": best, "short": best,
             "notes": _plausible_notes(r.get("notes", []), text),
@@ -260,8 +281,8 @@ def correct(text, fast=False, tone="default"):
     result = _request(text, timeout=timeout, tone=tone)
 
     for f in FIELDS:
-        result[f] = blocklist.strip_invented_currency(
-            text, blocklist.clean(result.get(f, "")))
+        result[f] = blocklist.strip_invented_currency(text, blocklist.clean(
+            blocklist.restore_mangled_words(text, result.get(f, ""))))
 
     # One retry for words that have a real meaning but no safe swap. Measured to
     # work: "leverage the API to facilitate onboarding" -> "use the API to speed up
@@ -275,8 +296,8 @@ def correct(text, fast=False, tone="default"):
                 "Rewrite so those words are not needed at all. Do not swap them for "
                 "synonyms, restructure the sentence."))
             for f in FIELDS:
-                retry[f] = blocklist.strip_invented_currency(
-                    text, blocklist.clean(retry.get(f, "")))
+                retry[f] = blocklist.strip_invented_currency(text, blocklist.clean(
+                    blocklist.restore_mangled_words(text, retry.get(f, ""))))
             if len(blocklist.violations(retry["fix"])) < len(blocklist.violations(result["fix"])):
                 result = retry
         except SaafError:
@@ -302,7 +323,9 @@ def correct(text, fast=False, tone="default"):
         "short": _changes(result["fix"], result["short"]),
     }
     result["tone"] = tone
-    result["best"] = result["natural"]
+    # `natural` is the right answer for every tone except the ones routed here
+    # specifically to collect a different field.
+    result["best"] = result[TONES_VIA_VARIANTS.get(tone, "natural")]
     result["seconds"] = round(time.time() - t0, 2)
     _log(text, result)
     return result
@@ -475,10 +498,13 @@ def main(argv):
         return 0
 
     print()
-    if r.get("fast"):
-        if tone != "default" and not fast:
-            # Say so rather than silently changing what was asked for.
+    if tone != "default":
+        # Any tone is a single answer, whichever prompt produced it. Say so, so
+        # asking for three and getting one is never a surprise.
+        if not fast:
             print(f"  (one answer, written for: {tone})\n")
+        print(f"  {r['best']}")
+    elif r.get("fast"):
         print(f"  {r['best']}")
     else:
         for i, f in enumerate(("natural", "fix", "short"), 1):

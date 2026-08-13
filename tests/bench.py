@@ -188,6 +188,12 @@ def check(case, result):
         if s not in re.sub(r"[^0-9]", "", fix):
             fails.append(f"missing the number {s!r}")
 
+    # Structure, not wording: a multi-paragraph message must come back with its
+    # paragraphs. A substring check cannot see this at all.
+    if "min_lines" in case and len(fix.splitlines()) < case["min_lines"]:
+        fails.append(f"{len(fix.splitlines())} lines, expected >= {case['min_lines']}"
+                     " (paragraphs were flattened)")
+
     # The brief tone is the one assertion that cannot be a substring check: it is
     # about how much was cut, not which words survived.
     if "max_words" in case and len(fix.split()) > case["max_words"]:
@@ -207,14 +213,16 @@ def run_suite(model, fast):
         print(f"  UNAVAILABLE: {e}")
         return None
 
-    # Tone is a single-answer concept: it replaces the fix/natural/short
-    # dimension rather than stacking on it, so corrector.correct() forces fast
-    # mode for any non-default tone. Scoring those cases in variants mode would
-    # be scoring fast mode twice and reporting it under the wrong heading.
+    # Tone cases are scored once, in the fast pass.
+    #
+    # corrector.correct() routes each tone to whichever prompt serves it best and
+    # overrides the caller's `fast` argument to do so, which means a tone case
+    # returns the same answer in either pass. Running them twice would report the
+    # identical result under two headings and inflate both totals.
     cases = [c for c in CASES if fast or c.get("tone", "default") == "default"]
     skipped = len(CASES) - len(cases)
     if skipped:
-        print(f"  {skipped} tone case(s) skipped: tone applies to fast mode only\n")
+        print(f"  {skipped} tone case(s) skipped: scored in the fast pass only\n")
 
     passed, fix_times, tot_times = 0, [], []
     for case in cases:

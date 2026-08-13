@@ -137,6 +137,32 @@ CASES = [
         note="must not invent greetings, sign-offs, or certainty the writer did not express",
     ),
 
+    # --- structure: an email is not one line ---------------------------------
+    # blocklist.clean() used to flatten a seven-line email into a single line,
+    # because its tidy-up regexes were written with \s and \s matches "\n". The
+    # model then compounded it by dropping the sign-off entirely.
+    dict(
+        id="multiline_keeps_paragraphs",
+        text=("hi sir,\n\ni has send the report yesterday.\n\n"
+              "pls review and let me know.\n\nthanks"),
+        min_lines=5,
+        must_contain=["thanks"],
+        must_not_contain=["pls"],
+        check_field="natural",
+        note="paragraph breaks are structure the writer chose, not whitespace "
+             "to tidy away - and a sign-off he wrote must survive",
+    ),
+    dict(
+        id="sign_off_not_mangled",
+        text="pls review the doc and let me know\n\nthanks",
+        must_contain=["thanks"],
+        must_not_contain=["tanks "],
+        check_field="natural",
+        note=("measured: the model returned 'tanks' in 5 runs of 6, and rewording "
+              "the prompt only got it to 3 of 6. Guarded in blocklist.py instead, "
+              "which is what this project does with anything closed-form."),
+    ),
+
     # --- tone cases: audience changes the register, not the meaning ----------
     # Each tone gets a case that asserts what makes it that tone, plus one that
     # asserts the tone did NOT license dropping information. A tone that quietly
@@ -146,7 +172,7 @@ CASES = [
         text="i has send the mail yesterday and i will share the report by monday",
         tone="formal",
         must_not_contain=["I'll", "I've", "don't", "can't", "won't", "it's", "I'm"],
-        check_field="natural",
+        check_field="best",
         note="formal is for a client: complete sentences, no contractions",
     ),
     dict(
@@ -159,7 +185,7 @@ CASES = [
         # not dollars, and inventing the currency is inventing a fact about money.
         must_contain_digits=["45000"],
         must_not_contain=["kindly", "pls", "$", "USD", "dollars"],
-        check_field="natural",
+        check_field="best",
         note="a change of register must never drop a number or name, and must "
              "never attach a currency the writer did not write",
     ),
@@ -173,7 +199,10 @@ CASES = [
         tone="brief",
         max_words=30,
         must_not_contain=["kindly", "discussed about"],
-        check_field="natural",
+        # `best`, not `natural`: brief is served by the three-variant prompt's
+        # `short` field, so `natural` is the full-length answer this tone exists
+        # to avoid. Asserting on it measured the wrong thing entirely.
+        check_field="best",
         note="brief must genuinely cut: 52 words in, and the default register "
              "returns about 37, so anything near that is the tone being ignored",
     ),
@@ -182,7 +211,7 @@ CASES = [
         text="the build is failing on 3 of the tests, i think it is the token expiry",
         tone="brief",
         must_contain=["3"],
-        check_field="natural",
+        check_field="best",
         note="shortening is not licence to drop the detail that makes it actionable",
     ),
 ]

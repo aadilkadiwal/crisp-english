@@ -55,6 +55,14 @@ SUBSTITUTIONS = {
     r"\bperform (?:a )?review\b": "review",
     r"\bconduct (?:a )?review\b": "review",
     r"\bcarry out (?:a )?review\b": "review",
+    # "do the review" was the gap: perform/conduct/carry-out were all covered,
+    # but "do" is the verb the model actually reaches for, and it failed 5 runs
+    # out of 5. The "of" form comes first so "do the review of the PR" becomes
+    # "review the PR" rather than "review of the PR".
+    r"\bdo (?:the|a) review of\b": "review",
+    r"\bdo (?:the|a) review\b": "review",
+    r"\bdo (?:the|a) check of\b": "check",
+    r"\bdo (?:the|a) testing of\b": "test",
     r"\bmake (?:a )?decision\b": "decide",
     r"\bgive (?:a )?confirmation\b": "confirm",
     r"\bdo (?:an )?investigation\b": "investigate",
@@ -266,12 +274,27 @@ def clean(text):
     # sentences must start with a capital, and standalone "i" is always "I"
     text = re.sub(r"\bi\b", "I", text)
 
-    # tidy up damage from deletions
-    text = re.sub(r"\s{2,}", " ", text)
-    text = re.sub(r"\s+([,.!?;:])", r"\1", text)
-    text = re.sub(r"^\s*[,;:]\s*", "", text)
-    text = re.sub(r"([.!?])\s*([a-z])",
-                  lambda m: f"{m.group(1)} {m.group(2).upper()}", text)
+    # Tidy up damage from deletions - WITHOUT touching line breaks.
+    #
+    # These used to be written with \s, which matches "\n". The result was that
+    # cleaning a seven-line email returned a single line: `\s{2,} -> " "` turns
+    # every blank line into a space. An email is one of the three things this
+    # tool is for, so silently destroying its paragraphs was not a small bug.
+    # [^\S\n] is "whitespace but not a newline".
+    text = re.sub(r"[^\S\n]{2,}", " ", text)          # runs of spaces/tabs
+    text = re.sub(r"[^\S\n]+([,.!?;:])", r"\1", text)  # space before punctuation
+    text = re.sub(r"[^\S\n]+\n", "\n", text)           # trailing space on a line
+    text = re.sub(r"\n{3,}", "\n\n", text)             # at most one blank line
+    text = re.sub(r"^[^\S\n]*[,;:][^\S\n]*", "", text)
+    # Capitalise after a sentence end only on the SAME line, so a line break is
+    # never silently closed up into the previous sentence.
+    text = re.sub(r"([.!?])([^\S\n]*)([a-z])",
+                  lambda m: f"{m.group(1)} {m.group(3).upper()}", text)
+    # ...and separately capitalise the start of every line, which the rule above
+    # can no longer reach now that it stops at a newline. Without this, a new
+    # paragraph after "yesterday.\n\n" stayed lowercase.
+    text = re.sub(r"(^|\n)([^\S\n]*)([a-z])",
+                  lambda m: m.group(1) + m.group(2) + m.group(3).upper(), text)
     text = text.strip()
     return text[:1].upper() + text[1:] if text else text
 
@@ -307,10 +330,72 @@ def strip_invented_currency(original, corrected):
     for word in CURRENCY_WORDS:
         if word.lower() not in low:
             out = re.sub(rf"\s*\b{re.escape(word)}\b", "", out, flags=re.IGNORECASE)
-    # deletions leave doubled spaces and orphaned space-before-punctuation
-    out = re.sub(r"\s{2,}", " ", out)
-    out = re.sub(r"\s+([,.!?;:])", r"\1", out)
+    # deletions leave doubled spaces and orphaned space-before-punctuation.
+    # [^\S\n] rather than \s, for the same reason as in clean(): a newline is
+    # structure the writer put there, not whitespace to be tidied away.
+    out = re.sub(r"[^\S\n]{2,}", " ", out)
+    out = re.sub(r"[^\S\n]+([,.!?;:])", r"\1", out)
     return out.strip()
+
+
+# Words the model has no business rewriting: greetings, sign-offs and courtesies
+# are the writer's own voice, not grammar. Closed set on purpose - see below.
+PROTECTED_WORDS = [
+    "thanks", "thank", "regards", "cheers", "hi", "hello", "hey",
+    "sir", "madam", "please", "sorry", "welcome",
+]
+
+
+def _edit_distance_one(a, b):
+    """True if one insertion, deletion or substitution turns a into b."""
+    if abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    short, long = (a, b) if len(a) < len(b) else (b, a)
+    i = j = 0
+    skipped = False
+    while i < len(short) and j < len(long):
+        if short[i] != long[j]:
+            if skipped:
+                return False
+            skipped = True
+            j += 1
+        else:
+            i += 1
+            j += 1
+    return True
+
+
+def restore_mangled_words(original, corrected):
+    """Undo typos the model introduced into words it should not have touched.
+
+    Measured: for a message ending in "thanks", the model returned "tanks" in 5
+    runs out of 6. Rewording the prompt took it to 3 out of 6, which is the usual
+    ceiling for prompting in this project and not good enough - a tool that
+    misspells a word the writer spelled correctly is worse than no tool.
+
+    Deliberately narrow. A blanket "restore any near-miss word" rule would undo
+    real corrections, because good edits are near-misses too: mail -> email is a
+    single insertion and is exactly what should happen. So this only guards a
+    closed set of greetings and sign-offs, which carry no grammar to fix and are
+    the writer's voice rather than the writer's mistakes.
+    """
+    originals = set(re.findall(r"[a-z]+", original.lower()))
+    if not originals:
+        return corrected
+
+    def repair(match):
+        word = match.group(0)
+        low = word.lower()
+        if low in originals:
+            return word                    # the writer wrote it; leave it alone
+        for target in PROTECTED_WORDS:
+            if target in originals and _edit_distance_one(low, target):
+                return _match_case(target, word)
+        return word
+
+    return re.sub(r"[A-Za-z]+", repair, corrected)
 
 
 def violations(text):
