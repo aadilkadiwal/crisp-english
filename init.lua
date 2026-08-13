@@ -331,3 +331,17 @@ end
 -- No startup alert any more: the menubar icon is a better answer to "did the
 -- config load" than a box that vanishes after two seconds. No icon means it did
 -- not - which is the one thing Hammerspoon could never tell you from the inside.
+--
+-- Except that "no icon" has two causes: the config failed, or the icon is there
+-- and macOS is hiding it behind the notch because the menu bar is full. This
+-- line distinguishes them. It is the last statement in the file, so the file
+-- reaching it proves everything above ran.
+do
+  local f = io.open("/tmp/saaf-load.log", "w")
+  if f then
+    f:write(string.format("%s  loaded ok\nproject=%s\nmenubar=%s\ntone=%s\n",
+      os.date("%Y-%m-%d %H:%M:%S"), tostring(PROJECT),
+      tostring(package.loaded["menubar"] ~= nil), tostring(state.tone)))
+    f:close()
+  end
+end

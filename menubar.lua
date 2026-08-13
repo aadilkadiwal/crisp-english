@@ -220,6 +220,7 @@ function M.attach(state)
     if not isBusy then refreshWarm() end   -- a correction just warmed the model
   end
 
+  M.bar = bar        -- exposed so the icon can be inspected from `hs -c`
   render()
   refreshWarm()
   -- 30s is well inside the 8h keep_alive, so the icon is never stale for long,
