@@ -1,0 +1,852 @@
+<meta charset="utf-8">
+<title>saaf — How to use it</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
+
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    margin: 0;
+    font: 10.5pt/1.62 -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color: #1c2024;
+    background: #fff;
+  }
+
+  /* ---- palette ---- */
+  :root {
+    --ink: #1c2024;
+    --muted: #5d666e;
+    --line: #dfe3e6;
+    --accent: #0f6e63;
+    --accent-soft: #e8f2f0;
+    --warn: #8a5a12;
+    --warn-soft: #fdf4e3;
+    --code-bg: #1e2428;
+  }
+
+  h1, h2, h3 { line-height: 1.25; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  h1 { font-size: 30pt; }
+  h2 {
+    font-size: 15pt; margin: 0 0 10px;
+    padding-bottom: 6px; border-bottom: 2px solid var(--accent);
+  }
+  h3 { font-size: 11.5pt; margin: 18px 0 6px; }
+  p { margin: 0 0 9px; }
+  strong { font-weight: 650; }
+  code {
+    font: 9.2pt/1.4 "SF Mono", Menlo, Consolas, monospace;
+    background: #f1f3f4; padding: 1px 4px; border-radius: 3px;
+  }
+
+  section { page-break-before: always; padding-top: 2px; }
+  section:first-of-type { page-break-before: avoid; }
+  .keep { page-break-inside: avoid; }
+
+  /* ---- cover ---- */
+  .cover { border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 20px; }
+  .cover .name { font-size: 42pt; font-weight: 700; letter-spacing: -0.03em; color: var(--accent); }
+  .cover .tag { font-size: 13pt; color: var(--muted); margin-top: 2px; }
+  .cover .meaning { font-size: 9.5pt; color: var(--muted); margin-top: 10px; font-style: italic; }
+
+  /* ---- the before/after showpiece ---- */
+  .ba { display: flex; gap: 0; margin: 14px 0 6px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .ba > div { flex: 1; padding: 12px 14px; }
+  .ba .b { background: #fbfbfc; border-right: 1px solid var(--line); }
+  .ba .a { background: var(--accent-soft); }
+  .ba .lbl { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin-bottom: 5px; }
+  .ba .txt { font-size: 11pt; }
+  .ba .a .txt { color: #0b4a42; font-weight: 550; }
+
+  /* ---- numbered steps ---- */
+  .step { display: flex; gap: 12px; margin: 0 0 16px; page-break-inside: avoid; }
+  .num {
+    flex: 0 0 25px; height: 25px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 11pt; font-weight: 650; text-align: center; line-height: 25px;
+  }
+  .step .body { flex: 1; padding-top: 2px; }
+  .step h3 { margin-top: 0; }
+
+  /* ---- terminal blocks: real output, verbatim ---- */
+  pre.term {
+    background: var(--code-bg); color: #e6edf0; border-radius: 6px;
+    padding: 11px 13px; margin: 8px 0 10px;
+    font: 8.6pt/1.55 "SF Mono", Menlo, Consolas, monospace;
+    white-space: pre-wrap; word-break: break-word;
+    page-break-inside: avoid;      /* a block split across pages loses its background */
+  }
+  h2, h3 { page-break-after: avoid; }
+  table { page-break-inside: avoid; }
+  pre.term .p { color: #6fd3c3; }        /* prompt */
+  pre.term .c { color: #8b98a1; }        /* comment / dim */
+  pre.term .g { color: #7fd88f; }        /* good output */
+  pre.term .y { color: #e6c07b; }        /* warning */
+
+  /* ---- figures ---- */
+  figure { margin: 10px 0 14px; page-break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid var(--line); border-radius: 5px; display: block; }
+  figcaption { font-size: 8.6pt; color: var(--muted); margin-top: 5px; }
+  figcaption b { color: var(--ink); font-weight: 650; }
+
+  /* ---- tables ---- */
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 9.4pt; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f6f8f8; font-size: 8pt; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  td code { font-size: 8.6pt; }
+
+  /* ---- callouts ---- */
+  .note, .warn {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    padding: 9px 12px; margin: 10px 0; font-size: 9.6pt; border-radius: 0 4px 4px 0;
+  }
+  .warn { border-left-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
+  .note b, .warn b { font-weight: 650; }
+
+  /* ---- key cap ---- */
+  kbd {
+    font: 9.2pt/1 -apple-system, sans-serif; font-weight: 600;
+    border: 1px solid #c3cace; border-bottom-width: 2px; border-radius: 4px;
+    background: #fff; padding: 3px 6px; white-space: nowrap;
+  }
+
+  /* ---- the flow diagram ---- */
+  .flow { margin: 14px 0 6px; }
+  .flow svg { width: 100%; height: auto; display: block; }
+
+  /* ---- app-window reproductions ---- */
+  .win {
+    border: 1px solid #c9d0d4; border-radius: 8px; overflow: hidden;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  .win .bar {
+    background: linear-gradient(#f6f6f6, #e9e9e9); border-bottom: 1px solid #d4d8db;
+    padding: 6px 10px; display: flex; align-items: center; gap: 6px;
+  }
+  .win .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .win .bar .t {
+    flex: 1; text-align: center; font-size: 8.6pt; color: #57606a;
+    font-weight: 600; margin-right: 40px;
+  }
+  .win .doc { padding: 16px 18px; min-height: 66px; font-size: 10.5pt; line-height: 1.7; }
+  .sel { background: #b3d7ff; }                      /* macOS selection blue */
+  .caret { border-left: 1.5px solid #1c2024; margin-left: 1px; }
+
+  /* the Hammerspoon alert, as it renders: dark rounded box, centred */
+  .hsalert {
+    background: #22262a; color: #fff; border-radius: 10px;
+    padding: 10px 18px; font-size: 10pt; text-align: center;
+    display: inline-block; max-width: 88%;
+  }
+  .overlay { text-align: center; margin-top: -34px; position: relative; }
+  .stage { position: relative; padding-bottom: 44px; }
+
+  /* ---- annotated alert mock ---- */
+  .alertmock {
+    background: #23282c; color: #f0f4f6; border-radius: 9px;
+    padding: 13px 16px; font-size: 10pt; line-height: 1.75;
+    max-width: 400px; margin: 4px 0 2px;
+  }
+  .alertmock .chg { color: #7fd88f; }
+  .alertmock .rule { color: #cfd8dd; }
+  .alertmock .hint { color: #e6c07b; }
+  .alertmock .rev { color: #8b98a1; font-size: 9pt; }
+  .anno { font-size: 9.2pt; color: var(--muted); margin: 0 0 3px; padding-left: 2px; }
+  .anno b { color: var(--accent); font-weight: 650; }
+
+  .foot { margin-top: 22px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 8.6pt; color: var(--muted); }
+</style>
+
+<!-- ============================ COVER / WHAT ============================ -->
+<section>
+  <div class="cover">
+    <div class="name">saaf</div>
+    <div class="tag">Fix the English in your work messages with one keystroke.</div>
+    <div class="meaning">saaf (साफ़) — Hindi/Urdu for <em>clean</em>. Which is the whole idea.</div>
+  </div>
+
+  <h2>What this actually does</h2>
+  <p>
+    You are typing a message to a colleague, a manager, or a client — in Slack, in an email, in
+    WhatsApp Web. The English comes out slightly wrong, the way it does when you are typing fast
+    between two meetings. Normally you would open ChatGPT, paste the message, copy the answer back,
+    and switch windows twice.
+  </p>
+  <p><strong>saaf removes that round trip.</strong> You select what you wrote and press one key.</p>
+
+  <div class="ba keep">
+    <div class="b">
+      <div class="lbl">what you typed</div>
+      <div class="txt">hi sir, i has send the mail yesterday and i am having fever so i will work from home</div>
+    </div>
+    <div class="a">
+      <div class="lbl">what saaf leaves behind</div>
+      <div class="txt">Hi sir, I sent the email yesterday and I have a fever so I'll work from home.</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Nothing you write ever leaves this Mac.</b> There is no account, no API key, no internet
+    request. The language model runs on your own machine. This is the entire reason the tool exists
+    instead of a browser tab — work messages stay on the laptop they were written on.
+  </div>
+
+  <h3>The whole thing in three steps</h3>
+  <div class="step">
+    <div class="num">1</div>
+    <div class="body">Select the text you just wrote. (Click and drag over it, or press <kbd>⌘ A</kbd> to select everything.)</div>
+  </div>
+  <div class="step">
+    <div class="num">2</div>
+    <div class="body">Press <kbd>⌥ Option</kbd> + <kbd>P</kbd>. Wait about two seconds.</div>
+  </div>
+  <div class="step">
+    <div class="num">3</div>
+    <div class="body">
+      The corrected sentence has replaced your selection. Nothing else happens — no popup, no sound,
+      no box. If you dislike the result, press <kbd>⌘ Z</kbd>, exactly like undoing anything else.
+    </div>
+  </div>
+
+  <div class="note">
+    <b>saaf is deliberately silent.</b> The only thing that changes on screen is your text. If you
+    would rather see what it edited and which rule you broke, that can be switched on — see
+    <em>The menu bar icon</em> later in this guide — it is a checkbox, not a code change.
+  </div>
+
+  <p style="margin-top:14px;color:var(--muted);font-size:9.6pt">
+    That is the complete user manual. Everything after this page is setup, detail, and what to do
+    when something looks wrong.
+  </p>
+</section>
+
+<!-- ============================ THE TWO PROGRAMS ============================ -->
+<section>
+  <h2>Why two other programs have to be running</h2>
+  <p>
+    This is the part that confuses people first, so it is worth being clear. saaf is not a single
+    app you launch. It is a small piece of glue that sits between two other programs, and
+    <strong>both of them must be running for the keystroke to do anything.</strong>
+  </p>
+
+  <table class="keep">
+    <thead>
+      <tr><th style="width:22%">Program</th><th style="width:30%">Its job here</th><th>Why saaf cannot work without it</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Ollama</strong><br><span style="color:var(--muted);font-size:8.8pt">the brain</span></td>
+        <td>Runs the language model (<code>qwen3:4b</code>) on your Mac and does the actual correcting.</td>
+        <td>Without it there is nothing to correct your sentence. You get the message
+            <em>"Ollama is not running."</em></td>
+      </tr>
+      <tr>
+        <td><strong>Hammerspoon</strong><br><span style="color:var(--muted);font-size:8.8pt">the hands</span></td>
+        <td>Watches for <kbd>⌥</kbd>+<kbd>P</kbd>, copies your selection, and pastes the result back.</td>
+        <td>Without it the keystroke does nothing at all — <kbd>⌥</kbd>+<kbd>P</kbd> just types
+            the character <code>π</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>How the pieces talk to each other</h3>
+  <div class="flow keep">
+    <svg viewBox="0 0 700 232" role="img" aria-label="Flow: selected text goes from your app through Hammerspoon and corrector.py to Ollama and back">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#5d666e"/>
+        </marker>
+      </defs>
+
+      <!-- machine boundary -->
+      <rect x="4" y="4" width="692" height="196" rx="9" fill="#f7fafa" stroke="#0f6e63"
+            stroke-width="1.4" stroke-dasharray="6 4"/>
+      <text x="18" y="24" font-family="-apple-system,sans-serif" font-size="10.5"
+            font-weight="650" fill="#0f6e63">Your MacBook — the dashed line is never crossed</text>
+
+      <!-- boxes -->
+      <g font-family="-apple-system,sans-serif" font-size="11">
+        <rect x="24" y="52" width="132" height="60" rx="6" fill="#fff" stroke="#c3cace"/>
+        <text x="90" y="76" text-anchor="middle" font-weight="650" fill="#1c2024">Slack / Mail</text>
+        <text x="90" y="94" text-anchor="middle" font-size="9.5" fill="#5d666e">your selected text</text>
+
+        <rect x="196" y="52" width="132" height="60" rx="6" fill="#fff" stroke="#c3cace"/>
+        <text x="262" y="76" text-anchor="middle" font-weight="650" fill="#1c2024">Hammerspoon</text>
+        <text x="262" y="94" text-anchor="middle" font-size="9.5" fill="#5d666e">init.lua</text>
+
+        <rect x="368" y="52" width="132" height="60" rx="6" fill="#fff" stroke="#c3cace"/>
+        <text x="434" y="76" text-anchor="middle" font-weight="650" fill="#1c2024">corrector.py</text>
+        <text x="434" y="94" text-anchor="middle" font-size="9.5" fill="#5d666e">rules + prompt</text>
+
+        <rect x="540" y="52" width="132" height="60" rx="6" fill="#e8f2f0" stroke="#0f6e63"/>
+        <text x="606" y="76" text-anchor="middle" font-weight="650" fill="#0b4a42">Ollama</text>
+        <text x="606" y="94" text-anchor="middle" font-size="9.5" fill="#0b4a42">qwen3:4b</text>
+      </g>
+
+      <!-- forward arrows -->
+      <g stroke="#5d666e" stroke-width="1.4" fill="none" marker-end="url(#ar)">
+        <path d="M156,74 L192,74"/>
+        <path d="M328,74 L364,74"/>
+        <path d="M500,74 L536,74"/>
+      </g>
+      <g font-family="-apple-system,sans-serif" font-size="8.5" fill="#5d666e" text-anchor="middle">
+        <text x="174" y="68">⌘C</text>
+        <text x="346" y="68">runs</text>
+        <text x="518" y="68">asks</text>
+      </g>
+
+      <!-- return path -->
+      <path d="M606,112 L606,150 L90,150 L90,116" stroke="#0f6e63" stroke-width="1.4"
+            fill="none" marker-end="url(#ar)"/>
+      <text x="348" y="166" text-anchor="middle" font-family="-apple-system,sans-serif"
+            font-size="9" fill="#0f6e63">the corrected sentence comes back and is pasted over your selection (⌘V)</text>
+
+      <text x="350" y="222" text-anchor="middle" font-family="-apple-system,sans-serif"
+            font-size="9.5" fill="#5d666e">Total time: about 2 seconds.</text>
+    </svg>
+  </div>
+
+  <h3>You do not have to keep track of this</h3>
+  <p>
+    That is what the <strong>saaf icon in your menu bar</strong> is for. You never have to remember
+    whether either program is running, or open Terminal to find out — one glance at the top-right of
+    your screen answers it:
+  </p>
+
+  <table class="keep">
+    <thead><tr><th style="width:12%">Icon</th><th style="width:30%">Meaning</th><th>What to do</th></tr></thead>
+    <tbody>
+      <tr><td style="font-size:15pt;text-align:center">◆</td>
+          <td><strong>Ready</strong></td>
+          <td>Nothing. Your next correction takes about a second and a half.</td></tr>
+      <tr><td style="font-size:15pt;text-align:center">◇</td>
+          <td><strong>Awake, model asleep</strong></td>
+          <td>Nothing, but the next correction will take ~30 seconds. Click the icon →
+              <em>Wake it now</em> if you would rather not wait mid-sentence.</td></tr>
+      <tr><td style="font-size:15pt;text-align:center">◈</td>
+          <td><strong>Working right now</strong></td>
+          <td>Wait a moment. This is how you know a keystroke registered.</td></tr>
+      <tr><td style="font-size:15pt;text-align:center">○</td>
+          <td><strong>Switched off</strong></td>
+          <td>You turned saaf off. Click the icon → <em>Turn saaf on</em>.</td></tr>
+      <tr><td style="text-align:center;color:var(--muted)">none</td>
+          <td><strong>Hammerspoon is not running</strong></td>
+          <td>This is the one thing the icon cannot report from the inside, so its absence is the
+              signal. Launch Hammerspoon. It is set to start at login, so this should be rare.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Ollama not running is handled for you.</b> Click the icon and choose <em>Start Ollama</em> — it
+    launches the app and wakes the model, so the first correction afterwards is not also a slow one.
+  </div>
+</section>
+
+<!-- ============================ SETUP ============================ -->
+<section>
+  <h2>One-time setup</h2>
+  <p>
+    One command, then one click that only you can do. If saaf is already working on your Mac, skip
+    this page.
+  </p>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div class="body">
+      <h3>Run the installer</h3>
+      <p>
+        Open <strong>Terminal</strong> (press <kbd>⌘ Space</kbd>, type <em>Terminal</em>, press
+        Return), then drag the saaf folder into the window after typing <code>cd&nbsp;</code>, and run:
+      </p>
+      <pre class="term"><span class="p">$</span> ./install.sh</pre>
+      <p>It installs Ollama and Hammerspoon if they are missing, downloads the language model
+        (about 2.5&nbsp;GB, once), connects saaf to Hammerspoon, sets up the warm-up job, and tests
+        that the engine works. Anything already done is skipped, so it is safe to run again if
+        something looks wrong.</p>
+      <div class="note">
+        <b>It will not overwrite an existing Hammerspoon setup.</b> If you already use Hammerspoon,
+        the installer adds one line to your config and backs the original up first, rather than
+        replacing it.
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div class="body">
+      <h3>Tick Hammerspoon in the Accessibility list</h3>
+      <p>
+        The installer opens the right settings pane for you at the end. Find
+        <strong>Hammerspoon</strong> in the list and switch it on.
+      </p>
+      <div class="warn">
+        <b>This is the one step that cannot be automated.</b> macOS does not allow any program to grant
+        itself Accessibility permission — that is a deliberate security rule, not a limitation of saaf.
+        Without it the keystroke is accepted, nothing gets copied, and you are told
+        <em>"Select some text first"</em> even though you did select something. The pane is
+        <strong>System&nbsp;Settings → Privacy&nbsp;&amp;&nbsp;Security → Accessibility</strong>.
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div class="body">
+      <h3>Check for the ◆ in your menu bar</h3>
+      <p>
+        That icon is your confirmation everything loaded, and it is where all the settings live. If it
+        is not there, quit and reopen Hammerspoon. Then select a badly written sentence anywhere and
+        press <kbd>⌥ Option</kbd> + <kbd>P</kbd>.
+      </p>
+    </div>
+  </div>
+
+  <h3>To remove saaf</h3>
+  <pre class="term"><span class="p">$</span> ./install.sh --uninstall</pre>
+  <p style="color:var(--muted);font-size:9.4pt">
+    That unhooks saaf and restores your Hammerspoon config. Ollama, Hammerspoon, the model, and your
+    <code>~/.saaf/</code> correction history are deliberately left alone; the script prints the
+    commands for removing those too if you want them gone.
+  </p>
+</section>
+
+<!-- ============================ USING IT ============================ -->
+<section>
+  <h2>Using it, step by step</h2>
+  <p>
+    The example below is TextEdit, but this works identically in Slack, Mail, WhatsApp Web, Notes, or
+    any other app where you can select text. The corrected sentence shown is real output from the
+    tool, not an approximation.
+  </p>
+
+  <div class="step">
+    <div class="num">1</div>
+    <div class="body">
+      <h3>Write badly, then select it</h3>
+      <p>
+        Here is a genuinely mangled sentence. Select it — dragging over it works, or
+        <kbd>⌘ A</kbd> selects everything in the box you are typing in.
+      </p>
+      <figure>
+        <div class="win">
+          <div class="bar">
+            <span class="dot" style="background:#ff5f57"></span>
+            <span class="dot" style="background:#febc2e"></span>
+            <span class="dot" style="background:#28c840"></span>
+            <span class="t">Untitled</span>
+          </div>
+          <div class="doc"><span class="sel">hi sir, i has send the mail yesterday and i am having fever so i will work from home</span></div>
+        </div>
+        <figcaption><b>Step 1.</b> The blue highlight is the whole story — saaf only ever touches what
+          is selected. It cannot see or change anything else on screen.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div class="body">
+      <h3>Press ⌥ + P and wait about two seconds</h3>
+      <p>
+        Nothing appears over your work — no spinner, no popup. The only thing that moves is the menu
+        bar icon, which changes to <strong>◈</strong> while it thinks and back to <strong>◆</strong>
+        when it is done.
+      </p>
+      <div class="note">
+        <b>That icon is how you tell a working keystroke from a missed one.</b> If it never changes to
+        ◈, the keystroke did not reach saaf. If it sits on ◈ for a long time, the model was asleep and
+        is waking up — that takes about 30 seconds, once.
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div class="body">
+      <h3>Your text is replaced. That is all.</h3>
+      <p>
+        The selection is gone and the corrected sentence is in its place, as though you had typed it
+        that way. No box, no confirmation.
+      </p>
+      <figure>
+        <div class="win">
+          <div class="bar">
+            <span class="dot" style="background:#ff5f57"></span>
+            <span class="dot" style="background:#febc2e"></span>
+            <span class="dot" style="background:#28c840"></span>
+            <span class="t">Untitled</span>
+          </div>
+          <div class="doc">Hi sir, I sent the email yesterday and I have a fever so I'll work from home.<span class="caret">&nbsp;</span></div>
+        </div>
+        <figcaption><b>Step 3.</b> Compare it with step 1 — four separate fixes, silently. The
+          capital <em>H</em>, <em>i has send</em> to <em>I sent</em>, <em>mail</em> to <em>email</em>,
+          and <em>i am having fever</em> to <em>I have a fever</em>.</figcaption>
+      </figure>
+      <p>
+        Because there is no summary, <strong>read the result before you send it.</strong> It is
+        accurate the overwhelming majority of the time, but you are now the only thing checking it.
+      </p>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Changed your mind?</b> Press <kbd>⌘ Z</kbd>. saaf pastes like any other paste, so your app's
+    normal undo puts your original wording straight back. Your clipboard is also left exactly as you
+    found it — saaf borrows it for a moment and hands it back.
+  </div>
+</section>
+
+<!-- ============================ MECHANISM ============================ -->
+<section>
+  <h2>What happens in those two seconds</h2>
+  <p>
+    You do not need any of this to use saaf. It is here because a tool that edits your writing and
+    touches your clipboard should not be a black box.
+  </p>
+
+  <table class="keep">
+    <thead><tr><th style="width:14%">Time</th><th style="width:34%">What happens</th><th>Why it is done that way</th></tr></thead>
+    <tbody>
+      <tr><td><code>0 ms</code></td>
+          <td>Hammerspoon catches <kbd>⌥P</kbd> before your app sees it. The icon turns
+              <strong>◈</strong>.</td>
+          <td>This is why the key never types a <code>π</code>. If you see one, Hammerspoon is not
+              running.</td></tr>
+      <tr><td><code>0 ms</code></td>
+          <td>Your current clipboard is saved, then <kbd>⌘C</kbd> is pressed for you.</td>
+          <td>saaf has no way to read a selection directly — no app exposes one. Copying is the only
+              route, which is why Accessibility permission is required.</td></tr>
+      <tr><td><code>250 ms</code></td>
+          <td>Your selected text is read, and <strong>your original clipboard is put straight
+              back</strong>.</td>
+          <td>Restored immediately rather than at the end, so even a crash mid-correction cannot eat
+              your clipboard. Slack and other Electron apps are slow to fill the clipboard; 250 ms
+              covers them.</td></tr>
+      <tr><td><code>250 ms</code></td>
+          <td><code>corrector.py</code> starts as a separate program and is handed your text.</td>
+          <td>Kept separate on purpose: the correction logic knows nothing about hotkeys or
+              clipboards, so it can be tested on its own and run from Terminal.</td></tr>
+      <tr><td><code>~1.4 s</code></td>
+          <td>It asks Ollama, which runs the model on your Mac's GPU and returns a corrected sentence
+              plus the grammar rules you broke.</td>
+          <td>The only slow part. Nothing leaves the machine; there is no network request beyond
+              <code>localhost</code>.</td></tr>
+      <tr><td><code>~1.45 s</code></td>
+          <td>A fixed rule list runs over the answer — <code>kindly</code> → <code>please</code>,
+              <code>revert back</code> → <code>reply</code>, and the rest.</td>
+          <td>Testing showed the model ignores these instructions about a third of the time even when
+              told explicitly. Rules cannot forget, so anything expressible as a rule is a rule.</td></tr>
+      <tr><td><code>~1.5 s</code></td>
+          <td>The correction is put on the clipboard and <kbd>⌘V</kbd> is pressed.</td>
+          <td>Pasting rather than retyping is what makes <kbd>⌘Z</kbd> work — your app sees one
+              ordinary paste, so one undo reverses it.</td></tr>
+      <tr><td><code>~1.65 s</code></td>
+          <td>Your clipboard is restored again, the icon returns to <strong>◆</strong>, and the
+              correction is appended to <code>~/.saaf/mistakes.log</code>.</td>
+          <td>That log is what <em>My frequent mistakes…</em> counts. It never leaves your Mac and you
+              can delete it any time.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Why two layers instead of just asking the model</h3>
+  <p>
+    The model handles grammar, which needs judgement. A fixed rule list handles office filler and a
+    short set of recurring mistakes, which do not. Splitting it that way is what lets saaf use a small
+    model that answers in about a second instead of a large one that answers in five — the small model
+    only has to get the grammar right, because everything else is already guaranteed.
+  </p>
+  <p>
+    It is also why one specific thing is <em>never</em> auto-fixed. <em>"Do the needful"</em> has no
+    safe replacement — it could mean review, approve, deploy, or pay — so instead of guessing, saaf
+    flags it and leaves the sentence to you.
+  </p>
+</section>
+
+<!-- ============================ READING THE BOX ============================ -->
+<section>
+  <h2>The menu bar icon</h2>
+  <p>
+    Everything you can change about saaf is one click away. Nothing here requires editing a file or
+    restarting anything.
+  </p>
+
+  <pre class="term"><span class="g">◆ saaf</span>
+  <span class="c">─────────────────────────────</span>
+  Turn saaf off
+  <span class="c">─────────────────────────────</span>
+  Model: ready
+  <span class="y">✓</span> Show what changed on screen
+  <span class="c">─────────────────────────────</span>
+  12 corrections today
+  My frequent mistakes...
+  <span class="c">─────────────────────────────</span>
+  <span class="y">✓</span> Start at login
+  Start Ollama
+  Reload saaf</pre>
+
+  <table>
+    <tbody>
+      <tr><td style="width:36%"><strong>Turn saaf off</strong></td>
+          <td>Stops corrections without quitting anything. <kbd>⌥ P</kbd> does nothing while off — it
+              will not start typing a <code>π</code> at you either. Useful when you are writing code
+              or in a language saaf should not touch.</td></tr>
+      <tr><td><strong>Model: ready / asleep</strong></td>
+          <td>Whether the next correction is fast or slow. When asleep, a <em>Wake it now</em> entry
+              appears underneath.</td></tr>
+      <tr><td><strong>Show what changed on screen</strong></td>
+          <td>Off by default. Tick it and every correction shows what it edited, which grammar rule you
+              broke, and any warnings. Takes effect immediately — tick it for one important email and
+              untick it after.</td></tr>
+      <tr><td><strong>My frequent mistakes…</strong></td>
+          <td>Opens the same tally as <code>./corrector.py stats</code> in a text window.</td></tr>
+      <tr><td><strong>Start at login</strong></td>
+          <td>Already on. This is what makes saaf survive a restart — without it, a reboot leaves you
+              with no icon and a dead hotkey.</td></tr>
+      <tr><td><strong>Start Ollama</strong></td>
+          <td>Launches Ollama and wakes the model. This is the "I don't want to think about it" button.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>What "show what changed" looks like</h3>
+  <p>
+    With that box ticked, a dark panel appears in the centre of the screen while it works, and a
+    second one afterwards showing up to three kinds of information. Here is one with all three at once:
+  </p>
+
+  <div class="alertmock keep">
+    <div class="chg">hi → Hi&nbsp;&nbsp;&nbsp;&nbsp;i has send → I sent&nbsp;&nbsp;&nbsp;&nbsp;mail yesterday and pls → email yesterday. Please&nbsp;&nbsp;&nbsp;&nbsp;the needful → what's needed.</div>
+    <div class="rule">subject-verb agreement</div>
+    <div class="rule">comma splices</div>
+    <div class="hint">"do the needful" does not say what you want. Name the action: review it, approve it, deploy it.</div>
+    <div class="rev">⌘Z to revert</div>
+  </div>
+
+  <p class="anno"><b>The green line — the edits.</b> Literally what was swapped, old on the left, new on the right. Skim it to confirm your meaning survived.</p>
+  <p class="anno"><b>The plain lines — the grammar rules you broke.</b> Named, so they are learnable rather than merely fixed. These get counted; see the next page.</p>
+  <p class="anno"><b>The amber line — a warning.</b> Something saaf is telling you it could not safely decide for you. This is the important one.</p>
+  <p class="anno"><b>The grey line — the reminder</b> that ⌘Z undoes the whole thing.</p>
+
+  <h3>Why it warns instead of trusting the fix</h3>
+  <p>
+    <em>"Do the needful"</em> could mean review it, approve it, deploy it, or pay it. Nothing in your
+    sentence says which. In the example above the model guessed <em>"what's needed"</em> — which is
+    no more specific than what you wrote, and could still send a colleague off in the wrong direction.
+  </p>
+  <p>
+    So the warning does not depend on the model behaving well. <strong>saaf checks the phrase against
+    what <em>you</em> typed, not against what came back</strong> — which means it fires either way,
+    whether the model left the phrase alone or quietly paraphrased it. The fix it wants from you is to
+    name the action yourself. <strong>This is the one place saaf teaches instead of correcting, and it
+    is deliberate.</strong>
+  </p>
+  <div class="warn">
+    <b>This is what running silent actually costs you.</b> The warning still gets calculated on every
+    correction — it just has nowhere to appear. A vague instruction gets silently paraphrased into
+    something equally vague and nothing points it out. If you write <em>"do the needful"</em>,
+    <em>"revert back"</em>, or similar office shorthand often, this is the single best reason to tick
+    <em>Show what changed on screen</em>. Otherwise, check the sentence in Terminal when it matters:
+    <code>./corrector.py --fast "your text"</code> prints the warning every time.
+  </div>
+  <p>
+    Phrases that <em>do</em> have a safe replacement are simply fixed without comment — for example
+    <code>kindly</code> becomes <code>please</code>, <code>revert back to</code> becomes
+    <code>reply to</code>, and <code>pls</code>, <code>thx</code>, <code>asap</code> are always
+    spelled out in full.
+  </p>
+
+  <h3>Things saaf will never do</h3>
+  <table>
+    <tbody>
+      <tr><td style="width:47%"><strong>Never adds a greeting or sign-off</strong></td>
+          <td>No "Dear", no "Regards", no "Looking forward to hearing from you."</td></tr>
+      <tr><td><strong>Never invents a fact, name, date, or number</strong></td>
+          <td>If you did not write it, it will not appear.</td></tr>
+      <tr><td><strong>Never adds confidence you did not have</strong></td>
+          <td>If you wrote "i think", the doubt stays.</td></tr>
+      <tr><td><strong>Never turns a one-line message into a paragraph</strong></td>
+          <td>A WhatsApp line stays a line.</td></tr>
+      <tr><td><strong>Never makes it sound like AI wrote it</strong></td>
+          <td>No "Additionally", "Furthermore", "Moreover"; no em dashes. The goal is correct English
+              that still sounds like you in a hurry — not a press release.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================ TERMINAL ============================ -->
+<section>
+  <h2>The Terminal version (optional)</h2>
+  <p>
+    The keystroke gives you one corrected sentence, which is what you want almost every time.
+    Occasionally you want choices, or you want to see which mistakes you keep making. Those live in
+    Terminal. Nothing here is required to use saaf day to day.
+  </p>
+
+  <h3>Three phrasings instead of one</h3>
+  <p>Run it with your sentence in quotes and you get a minimal fix, a natural rewrite, and a short version:</p>
+  <pre class="term"><span class="p">$</span> ./corrector.py "i am having 4 years experience and i discussed about it since 2 years"
+
+  1. I've got 4 years of experience and I've been discussing it for 2 years
+  2. I have 4 years of experience and I discussed it for 2 years
+  3. I've got 4 years of experience and 2 years of discussion
+
+  rules you broke: 'having' for experience | since
+
+  <span class="c">3.14s · qwen3:4b · nothing left this Mac</span></pre>
+  <p style="color:var(--muted);font-size:9.4pt">
+    Option 2 is the one the hotkey would have given you. Add <code>--fast</code> to get just that one,
+    in about half the time.
+  </p>
+
+  <h3>The office phrases that are always replaced</h3>
+  <p>
+    Some corrections do not involve the model at all. A fixed list of office filler has a safe
+    replacement defined for it, and those swaps are applied every single time, in no measurable time:
+  </p>
+  <pre class="term"><span class="p">$</span> ./corrector.py --fast "kindly revert back on this asap"
+
+  <span class="g">Please reply to this as soon as possible</span>
+
+  <span class="c">1.2s · qwen3:4b · nothing left this Mac</span></pre>
+  <p>
+    <code>kindly</code> → <code>please</code>, <code>revert back</code> → <code>reply</code>,
+    <code>asap</code> → <code>as soon as possible</code>. Because these are rules rather than
+    requests to a model, they cannot be forgotten or ignored — run that command three times and you
+    get the identical sentence three times. The same applies to <code>pls</code>,
+    <code>thx</code>, <code>u</code>, and <code>discussed about</code> → <code>discussed</code>.
+  </p>
+
+  <h3>Which mistakes you actually keep making</h3>
+  <p>
+    Every correction is logged to <code>~/.saaf/mistakes.log</code> on your machine. This turns that
+    log into a tally, so the point stops being "patch this message" and starts being "stop making
+    this mistake":
+  </p>
+  <pre class="term"><span class="p">$</span> ./corrector.py stats
+
+  39 messages corrected, first on 2026-08-12
+
+  Your most frequent mistakes:
+
+    present perfect with a past time word   19  ###################
+    missing article (a / an / the)            9  #########
+    singular / plural                         6  ######
+    revert back                               4  ####
+    asap                                      4  ####
+    did not get (verb form)                   1  #</pre>
+  <p>
+    Read that as a study list. Nineteen of those thirty-nine messages used a present perfect with a
+    past time word — <em>"I have sent it yesterday"</em> instead of <em>"I sent it yesterday"</em>.
+    That is a single rule, and learning it would remove almost half the corrections saaf has ever had
+    to make for you.
+  </p>
+  <div class="note">
+    <b>The log is yours alone.</b> It is a plain text file at <code>~/.saaf/mistakes.log</code>, one
+    line per correction, on your machine. Delete it whenever you like — saaf simply starts counting
+    again.
+  </div>
+</section>
+
+<!-- ============================ TROUBLESHOOTING ============================ -->
+<section>
+  <h2>When something looks wrong</h2>
+  <p>
+    Because saaf runs silent, the errors below arrive as ordinary macOS notifications in the top-right
+    corner — not as centre-screen boxes. Anything in a <code>code style</code> below is the exact
+    wording you will see.
+  </p>
+
+  <div class="note">
+    <b>Start with the icon.</b> Almost every problem is identified by what the menu bar shows before
+    you check anything else. <strong>No icon</strong> → Hammerspoon is not running.
+    <strong>○</strong> → you turned saaf off. <strong>◇</strong> → it will work but slowly.
+    <strong>◆ that never changes to ◈ when you press ⌥P</strong> → the keystroke is not reaching saaf.
+  </div>
+
+  <table>
+    <thead><tr><th style="width:36%">What you see</th><th>What it means and what to do</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>No saaf icon in the menu bar</strong></td>
+        <td>Hammerspoon is not running — nothing else can be wrong yet, because the icon <em>is</em>
+            Hammerspoon. Launch it from Applications. It is set to start at login, so if this keeps
+            happening check that <em>Start at login</em> is still ticked.</td>
+      </tr>
+      <tr>
+        <td><strong>Icon shows <code>○</code></strong></td>
+        <td>saaf is switched off. Click the icon → <em>Turn saaf on</em>.</td>
+      </tr>
+      <tr>
+        <td><strong>Text unchanged, and a <code>π</code> appeared</strong></td>
+        <td>The <code>π</code> means Hammerspoon never intercepted the key, so macOS typed the
+            character instead. If the icon is present, the config loaded but the hotkey did not bind —
+            click the icon → <em>Reload saaf</em>.</td>
+      </tr>
+      <tr>
+        <td><strong>Icon flicked to <code>◈</code> and back, but the text did not change</strong></td>
+        <td>It ran and found nothing to fix — your sentence was already correct. saaf leaves correct
+            text alone rather than rewriting it for the sake of it.</td>
+      </tr>
+      <tr>
+        <td><code>Ollama is not running.</code></td>
+        <td>The brain is not awake. Click the saaf icon → <em>Start Ollama</em>. It launches the app and
+            wakes the model for you.</td>
+      </tr>
+      <tr>
+        <td><code>Select some text first.</code><br><span style="color:var(--muted);font-size:8.8pt">but you did select text</span></td>
+        <td>Hammerspoon is missing <strong>Accessibility</strong> permission, so its copy did nothing.
+            Grant it in System&nbsp;Settings → Privacy&nbsp;&amp;&nbsp;Security → Accessibility, then
+            reload the config.</td>
+      </tr>
+      <tr>
+        <td><strong>A correction takes ~30 seconds</strong><br><span style="color:var(--muted);font-size:8.8pt">icon was showing <code>◇</code></span></td>
+        <td>The model was asleep and is being read off disk. Working as intended, just slow once —
+            every correction after it is fast. Avoid it by clicking <em>Wake it now</em> whenever you
+            notice ◇, and by installing the background job from step&nbsp;4 of the setup page.</td>
+      </tr>
+      <tr>
+        <td><code>Model did not finish loading in 90s.</code></td>
+        <td>The load stalled. Run <code>ollama run qwen3:4b</code> once in Terminal, wait for a prompt,
+            then try again.</td>
+      </tr>
+      <tr>
+        <td><code>Model took longer than 25s.</code></td>
+        <td>Your selection was long. Select a paragraph at a time rather than a whole email.</td>
+      </tr>
+      <tr>
+        <td><code>Text is N characters. Select less than 4000.</code></td>
+        <td>Too much at once, for the same reason. Do it in pieces.</td>
+      </tr>
+      <tr>
+        <td><strong>The correction is wrong or lost my meaning</strong></td>
+        <td>Press <kbd>⌘ Z</kbd>. Then, if the sentence was ambiguous, rewrite the unclear part
+            yourself — that is usually the real fix. Silent mode means you are the only reviewer, so
+            re-read anything important before sending.</td>
+      </tr>
+      <tr>
+        <td><strong>I want to know what it changed</strong></td>
+        <td>Click the icon and tick <em>Show what changed on screen</em>. Or check a sentence in
+            Terminal before using it: <code>./corrector.py --fast "your text"</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>The one thing that fixes most things</h3>
+  <p>
+    Click the saaf icon and choose <strong>Reload saaf</strong>. That re-reads every saaf file and
+    rebuilds the hotkey — worth trying before anything else, and the fix after you edit any of them.
+    From Terminal the equivalent is <code>hs -c 'hs.reload()'</code>.
+  </p>
+  <p style="color:var(--muted);font-size:9.4pt">
+    If the icon itself is missing, there is nothing to click: launch Hammerspoon from Applications. If
+    it is misbehaving in some other way, quit and reopen it.
+  </p>
+
+  <div class="note">
+    <b>A useful habit:</b> run <code>./corrector.py stats</code> once a week. The hotkey fixes
+    today's message; the tally is the part that eventually makes the hotkey unnecessary.
+  </div>
+
+  <div class="foot">
+    saaf — local English correction for work messages · runs on qwen3:4b via Ollama, driven by
+    Hammerspoon · <strong>nothing you write leaves this Mac</strong>
+  </div>
+</section>
