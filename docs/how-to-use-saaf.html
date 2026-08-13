@@ -219,6 +219,44 @@
   </p>
 </section>
 
+<!-- ============================ FEATURES ============================ -->
+<section>
+  <h2>Everything it can do</h2>
+  <p>The whole feature list on one page, so you know what is there before the detail pages.</p>
+
+  <table>
+    <thead><tr><th style="width:30%">Feature</th><th>What it means for you</th></tr></thead>
+    <tbody>
+      <tr><td><strong>One keystroke</strong><br><kbd>⌥ Option</kbd> + <kbd>P</kbd></td>
+          <td>Select text in any app, press it, and the corrected sentence replaces your selection
+              in about a second and a half. <kbd>⌘ Z</kbd> undoes it like any other paste.</td></tr>
+      <tr><td><strong>Nothing leaves your Mac</strong></td>
+          <td>The language model runs on your own machine. No account, no API key, no internet
+              request beyond <code>localhost</code>. This is the reason the tool exists.</td></tr>
+      <tr><td><strong>Three audiences</strong></td>
+          <td>Choose who the message is for — a colleague, a client, or Slack — and the register
+              changes to match. See <em>Writing for someone specific</em>.</td></tr>
+      <tr><td><strong>Silent by default</strong></td>
+          <td>No popups over your work. The menu bar icon reports what is happening. You can turn
+              on-screen detail on whenever you want it.</td></tr>
+      <tr><td><strong>Menu bar control</strong></td>
+          <td>On/off, audience, model status, today's count, start Ollama, start at login — all one
+              click away, none of it requiring a file edit.</td></tr>
+      <tr><td><strong>It refuses to guess</strong></td>
+          <td>Phrases with no clear meaning, like <em>"do the needful"</em>, are flagged rather than
+              silently interpreted. See <em>What it will not do to your writing</em>.</td></tr>
+      <tr><td><strong>Learns you nothing, teaches you something</strong></td>
+          <td>Every correction records which grammar rule you broke.
+              <code>./corrector.py stats</code> turns that into a tally of your recurring mistakes.</td></tr>
+      <tr><td><strong>Works on whole emails</strong></td>
+          <td>Paragraph breaks, greetings and sign-offs survive intact. Select a four-paragraph
+              draft and you get four paragraphs back.</td></tr>
+      <tr><td><strong>Survives a restart</strong></td>
+          <td>Starts at login, and keeps the model warm through the working day so you rarely wait.</td></tr>
+    </tbody>
+  </table>
+</section>
+
 <!-- ============================ THE TWO PROGRAMS ============================ -->
 <section>
   <h2>Why two other programs have to be running</h2>
@@ -495,6 +533,67 @@
   </div>
 </section>
 
+<!-- ============================ TONE ============================ -->
+<section>
+  <h2>Writing for someone specific</h2>
+  <p>
+    The same message reads differently depending on who is going to read it. Click the menu bar icon,
+    choose <strong>Writing for</strong>, and pick one. It stays until you change it, and the current
+    choice is always shown in the menu and the tooltip.
+  </p>
+
+  <table class="keep">
+    <thead><tr><th style="width:24%">Choice</th><th>What changes</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Colleague</strong><br><span style="color:var(--muted);font-size:8.8pt">the default</span></td>
+          <td>Normal work register. Contractions are fine, sentences stay short. This is what
+              everything was tuned for.</td></tr>
+      <tr><td><strong>Client or senior</strong></td>
+          <td>Complete sentences and no contractions — <em>I will</em> rather than <em>I'll</em>.
+              Precise and respectful, without becoming longer or adding flattery.</td></tr>
+      <tr><td><strong>Slack / WhatsApp</strong></td>
+          <td>Cut to the fewest words that stay polite. Roughly a third of the length. Facts,
+              numbers and names always survive.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>The same message, all three ways</h3>
+  <p>Real output. The input is 52 words of the kind of thing you type in a hurry:</p>
+  <pre class="term"><span class="c">hi sir, i just wanted to quickly check in with you regarding the deployment
+that we discussed about in yesterday meeting, i has completed the changes and
+pushed it to staging, so whenever you get some time please can you kindly
+review it and let me know your feedback on the same</span></pre>
+
+  <table>
+    <tbody>
+      <tr><td style="width:20%"><strong>Colleague</strong><br><span style="color:var(--muted);font-size:8.6pt">38 words</span></td>
+          <td>Hi sir, I just wanted to quickly check in about the deployment we discussed yesterday.
+              I've completed the changes and pushed it to staging. When you get a chance, please
+              review it and let me know your feedback.</td></tr>
+      <tr><td><strong>Client</strong><br><span style="color:var(--muted);font-size:8.6pt">37 words</span></td>
+          <td>Hi sir, I just wanted to check in about the deployment we discussed yesterday.
+              I completed the changes and pushed it to staging. Please review it when you have time
+              and let me know your feedback.</td></tr>
+      <tr><td><strong>Slack</strong><br><span style="color:var(--muted);font-size:8.6pt">18 words</span></td>
+          <td>Hi sir, I've completed the deployment changes and pushed to staging. Please review when
+              you get a chance.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Slack mode takes about a second longer.</b> It is produced by a different, more thorough pass
+    — one that was already proven to shorten reliably. Three attempts at a faster method all gave
+    inconsistent results (the same 52-word message came back at 50 words once and 28 the next time),
+    so it uses the slower one that gives 16 to 18 words every time.
+  </div>
+
+  <div class="warn">
+    <b>The setting sticks.</b> If you leave it on <em>Client or senior</em> and forget, your next
+    Slack message comes out formal. The menu bar tooltip tells you which is active without opening
+    anything — hover over the icon.
+  </div>
+</section>
+
 <!-- ============================ MECHANISM ============================ -->
 <section>
   <h2>What happens in those two seconds</h2>
@@ -574,6 +673,7 @@
   Turn saaf off
   <span class="c">─────────────────────────────</span>
   Model: ready
+  Writing for: Colleague          <span class="c">▸</span>
   <span class="y">✓</span> Show what changed on screen
   <span class="c">─────────────────────────────</span>
   12 corrections today
@@ -592,6 +692,10 @@
       <tr><td><strong>Model: ready / asleep</strong></td>
           <td>Whether the next correction is fast or slow. When asleep, a <em>Wake it now</em> entry
               appears underneath.</td></tr>
+      <tr><td><strong>Writing for</strong></td>
+          <td>Who the message is going to: Colleague, Client or senior, or Slack / WhatsApp. The
+              active choice is shown on this row, so you can see it without opening the submenu.
+              See <em>Writing for someone specific</em>.</td></tr>
       <tr><td><strong>Show what changed on screen</strong></td>
           <td>Off by default. Tick it and every correction shows what it edited, which grammar rule you
               broke, and any warnings. Takes effect immediately — tick it for one important email and
@@ -671,6 +775,57 @@
   </table>
 </section>
 
+<!-- ============================ GUARANTEES ============================ -->
+<section>
+  <h2>What it will not do to your writing</h2>
+  <p>
+    A tool that rewrites your messages has to be trustworthy about what it leaves alone. Each of these
+    is a real failure that was caught while building, and each is now prevented by a fixed rule rather
+    than by asking the model nicely — because the model ignores that kind of instruction often enough
+    to matter.
+  </p>
+
+  <table>
+    <thead><tr><th style="width:26%">It will never…</th><th>Why this rule exists</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Attach a currency you did not write</strong></td>
+        <td>Given <em>"invoice for 45000"</em>, the model returned <strong>$45,000</strong> in eight
+            runs out of eight. A bare number written in Mumbai is not dollars, and a wrong currency
+            in an invoice is a real-money mistake. If you type <code>$45,000</code> or
+            <code>Rs 45000</code>, that is exactly what you get back.</td>
+      </tr>
+      <tr>
+        <td><strong>Misspell your sign-off</strong></td>
+        <td>A message ending <em>"thanks"</em> came back as <strong>"tanks"</strong> in five runs out
+            of six. Greetings and sign-offs are your voice, not grammar, so they are now copied
+            through and repaired if the model mangles them.</td>
+      </tr>
+      <tr>
+        <td><strong>Flatten your paragraphs</strong></td>
+        <td>A seven-line email used to come back as a single line with the sign-off missing. Blank
+            lines are structure you chose. Four paragraphs in, four paragraphs out.</td>
+      </tr>
+      <tr>
+        <td><strong>Guess what you meant</strong></td>
+        <td><em>"Do the needful"</em> could mean review, approve, deploy or pay. Rather than pick one
+            and send a colleague the wrong instruction, saaf leaves the phrase alone and warns you to
+            name the action yourself.</td>
+      </tr>
+      <tr>
+        <td><strong>Drop a number or a name</strong></td>
+        <td>Even in Slack mode, where the whole point is cutting words. Length can go; facts cannot.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>All of these are tested, not promised.</b> Each one has a case in the test suite that fails if
+    the behaviour ever comes back. Run <code>python3 tests/bench.py qwen3:4b</code> to check them
+    yourself — it prints every failure with the offending output.
+  </div>
+</section>
+
 <!-- ============================ TERMINAL ============================ -->
 <section>
   <h2>The Terminal version (optional)</h2>
@@ -694,6 +849,21 @@
   <p style="color:var(--muted);font-size:9.4pt">
     Option 2 is the one the hotkey would have given you. Add <code>--fast</code> to get just that one,
     in about half the time.
+  </p>
+
+  <h3>Writing for a particular reader</h3>
+  <p>The same three audiences as the menu, without changing the menu setting:</p>
+  <pre class="term"><span class="p">$</span> ./corrector.py --formal "i has send the mail and i will share report by monday"
+
+  <span class="g">I have sent the email and I will share the report by Monday.</span>
+
+<span class="p">$</span> ./corrector.py --brief "hi sir, i just wanted to quickly check in regarding the
+                          deployment, i has completed the changes and pushed to staging"
+
+  <span class="g">Hi sir, I've completed the deployment changes and pushed to staging.</span></pre>
+  <p style="color:var(--muted);font-size:9.4pt">
+    Either flag gives you one answer rather than three, because an audience replaces the
+    minimal / natural / short choice rather than stacking on top of it.
   </p>
 
   <h3>The office phrases that are always replaced</h3>

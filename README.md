@@ -47,15 +47,32 @@ To remove: `./install.sh --uninstall`
 | `○` | Switched off |
 | *none* | Hammerspoon isn't running |
 
-Click it for: **Turn saaf off**, model status, **Show what changed on screen** (off by
-default — tick it and each correction shows what it edited and which rule you broke),
-today's count, your recurring mistakes, **Start Ollama**, start at login, and reload.
+Click it for: **Turn saaf off**, model status, **Writing for** (below), **Show what
+changed on screen** (off by default — tick it and each correction shows what it edited
+and which rule you broke), today's count, your recurring mistakes, **Start Ollama**,
+start at login, and reload.
+
+## Writing for
+
+The same message reads differently depending on who gets it. Pick an audience from the
+menu, or use a flag. 52 words in:
+
+| Audience | Out | Result |
+|---|---|---|
+| Colleague *(default)* | 38 w | Hi sir, I just wanted to quickly check in about the deployment we discussed yesterday. I've completed the changes… |
+| Client or senior | 37 w | …I completed the changes… — complete sentences, no contractions |
+| Slack / WhatsApp | **18 w** | Hi sir, I've completed the deployment changes and pushed to staging. Please review when you get a chance. |
+
+Slack mode takes about a second longer: it uses a slower pass that shortens reliably
+(16–18 words every time) instead of a fast one that gave 50, 28, 50 on the same input.
 
 ## Terminal
 
 ```bash
 ./corrector.py "i am having 4 years experience"   # three phrasings
 ./corrector.py --fast "..."                       # the one the hotkey uses
+./corrector.py --formal "..."                     # for a client or someone senior
+./corrector.py --brief "..."                      # for Slack, fewest words
 ./corrector.py stats                              # your recurring mistakes
 ```
 
