@@ -215,3 +215,36 @@ CASES = [
         note="shortening is not licence to drop the detail that makes it actionable",
     ),
 ]
+
+# --- keep the tested path the shipped path ----------------------------------
+#
+# The menu bar no longer offers the default register, so the hotkey always sends
+# either "formal" or "brief". The six assertions below were only ever checked
+# against the default, which means that after removing Colleague they would have
+# gone on passing while covering nothing anybody uses - the same gap the fast-mode
+# benchmark caught earlier, in a new place.
+#
+# Re-run them in the register that now ships. Derived rather than copied, so a
+# change to the original assertion cannot silently stop applying here.
+#
+# `formal` is the higher-risk register for most of these: a model asked to sound
+# professional is far more tempted to add "Best regards" than one asked to sound
+# like a colleague.
+_SHIPPED_REGISTER_IDS = [
+    "no_ai_connectives",
+    "no_zombie_nouns",
+    "no_invented_signoff",
+    "no_em_dash_or_curly_quotes",
+    "multiline_keeps_paragraphs",
+    "sign_off_not_mangled",
+]
+
+for _case in [c for c in CASES if c["id"] in _SHIPPED_REGISTER_IDS]:
+    _derived = dict(_case)
+    _derived["id"] = _case["id"] + "__formal"
+    _derived["tone"] = "formal"
+    _derived["check_field"] = "best"      # the field the user is handed
+    _derived["note"] = (
+        "derived: the same assertion in the register the hotkey actually uses. "
+        "See _SHIPPED_REGISTER_IDS.")
+    CASES.append(_derived)

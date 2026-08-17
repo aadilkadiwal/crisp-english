@@ -233,9 +233,10 @@
       <tr><td><strong>Nothing leaves your Mac</strong></td>
           <td>The language model runs on your own machine. No account, no API key, no internet
               request beyond <code>localhost</code>. This is the reason the tool exists.</td></tr>
-      <tr><td><strong>Three audiences</strong></td>
-          <td>Choose who the message is for — a colleague, a client, or Slack — and the register
-              changes to match. See <em>Writing for someone specific</em>.</td></tr>
+      <tr><td><strong>Two audiences</strong></td>
+          <td>Every correction is written for either a <strong>client</strong> or
+              <strong>Slack</strong>. There is no neutral option, so the choice always gets made.
+              See <em>Writing for someone specific</em>.</td></tr>
       <tr><td><strong>Silent by default</strong></td>
           <td>No popups over your work. The menu bar icon reports what is happening. You can turn
               on-screen detail on whenever you want it.</td></tr>
@@ -545,10 +546,7 @@
   <table class="keep">
     <thead><tr><th style="width:24%">Choice</th><th>What changes</th></tr></thead>
     <tbody>
-      <tr><td><strong>Colleague</strong><br><span style="color:var(--muted);font-size:8.8pt">the default</span></td>
-          <td>Normal work register. Contractions are fine, sentences stay short. This is what
-              everything was tuned for.</td></tr>
-      <tr><td><strong>Client or senior</strong></td>
+      <tr><td><strong>Client or senior</strong><br><span style="color:var(--muted);font-size:8.8pt">the default</span></td>
           <td>Complete sentences and no contractions — <em>I will</em> rather than <em>I'll</em>.
               Precise and respectful, without becoming longer or adding flattery.</td></tr>
       <tr><td><strong>Slack / WhatsApp</strong></td>
@@ -557,7 +555,14 @@
     </tbody>
   </table>
 
-  <h3>The same message, all three ways</h3>
+  <div class="note">
+    <b>There is no neutral setting, on purpose.</b> One of these two is always active, so every
+    message gets written for somebody rather than for nobody in particular. <em>Client</em> is the
+    default because it is the safer one to land on by accident — an over-formal Slack message is
+    mildly awkward, whereas an eighteen-word client email can be genuinely too blunt.
+  </div>
+
+  <h3>The same message, both ways</h3>
   <p>Real output. The input is 52 words of the kind of thing you type in a hurry:</p>
   <pre class="term"><span class="c">hi sir, i just wanted to quickly check in with you regarding the deployment
 that we discussed about in yesterday meeting, i has completed the changes and
@@ -566,11 +571,7 @@ review it and let me know your feedback on the same</span></pre>
 
   <table>
     <tbody>
-      <tr><td style="width:20%"><strong>Colleague</strong><br><span style="color:var(--muted);font-size:8.6pt">38 words</span></td>
-          <td>Hi sir, I just wanted to quickly check in about the deployment we discussed yesterday.
-              I've completed the changes and pushed it to staging. When you get a chance, please
-              review it and let me know your feedback.</td></tr>
-      <tr><td><strong>Client</strong><br><span style="color:var(--muted);font-size:8.6pt">37 words</span></td>
+      <tr><td style="width:20%"><strong>Client</strong><br><span style="color:var(--muted);font-size:8.6pt">37 words</span></td>
           <td>Hi sir, I just wanted to check in about the deployment we discussed yesterday.
               I completed the changes and pushed it to staging. Please review it when you have time
               and let me know your feedback.</td></tr>
@@ -579,6 +580,11 @@ review it and let me know your feedback on the same</span></pre>
               you get a chance.</td></tr>
     </tbody>
   </table>
+  <p style="color:var(--muted);font-size:9.4pt">
+    Note what <em>Client</em> does and does not change: contractions are gone
+    (<em>I completed</em>, not <em>I've completed</em>), but it is no longer than it needs to be and
+    it has not gained a "Dear" or a "Best regards".
+  </p>
 
   <div class="note">
     <b>Slack mode takes about a second longer.</b> It is produced by a different, more thorough pass
@@ -673,7 +679,7 @@ review it and let me know your feedback on the same</span></pre>
   Turn saaf off
   <span class="c">─────────────────────────────</span>
   Model: ready
-  Writing for: Colleague          <span class="c">▸</span>
+  Writing for: Client or senior   <span class="c">▸</span>
   <span class="y">✓</span> Show what changed on screen
   <span class="c">─────────────────────────────</span>
   12 corrections today
@@ -693,9 +699,9 @@ review it and let me know your feedback on the same</span></pre>
           <td>Whether the next correction is fast or slow. When asleep, a <em>Wake it now</em> entry
               appears underneath.</td></tr>
       <tr><td><strong>Writing for</strong></td>
-          <td>Who the message is going to: Colleague, Client or senior, or Slack / WhatsApp. The
-              active choice is shown on this row, so you can see it without opening the submenu.
-              See <em>Writing for someone specific</em>.</td></tr>
+          <td>Who the message is going to: <strong>Client or senior</strong> or
+              <strong>Slack / WhatsApp</strong>. The active choice is shown on this row, so you can
+              see it without opening the submenu. See <em>Writing for someone specific</em>.</td></tr>
       <tr><td><strong>Show what changed on screen</strong></td>
           <td>Off by default. Tick it and every correction shows what it edited, which grammar rule you
               broke, and any warnings. Takes effect immediately — tick it for one important email and
@@ -852,7 +858,7 @@ review it and let me know your feedback on the same</span></pre>
   </p>
 
   <h3>Writing for a particular reader</h3>
-  <p>The same three audiences as the menu, without changing the menu setting:</p>
+  <p>The same two audiences as the menu, without changing the menu setting:</p>
   <pre class="term"><span class="p">$</span> ./corrector.py --formal "i has send the mail and i will share report by monday"
 
   <span class="g">I have sent the email and I will share the report by Monday.</span>

@@ -89,7 +89,12 @@ local state = {
   -- Who the message is going to. Names must match the TONES table in
   -- corrector.py; an unknown one degrades to default there rather than failing,
   -- so a mismatch can never break the hotkey.
-  tone = "default",
+  --
+  -- "formal" rather than "default", because the menu no longer offers a
+  -- do-nothing option and one of the two audiences is always active. Client is
+  -- the safer of the two to land on by accident: an over-formal Slack message is
+  -- awkward, whereas an 18-word client email can be genuinely too terse.
+  tone = "formal",
   ollama = OLLAMA,
   model = os.getenv("SAAF_MODEL") or "qwen3:4b",
   project = PROJECT,

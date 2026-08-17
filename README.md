@@ -54,14 +54,16 @@ start at login, and reload.
 
 ## Writing for
 
-The same message reads differently depending on who gets it. Pick an audience from the
-menu, or use a flag. 52 words in:
+Every correction is written for one of two readers — there is no neutral option, so
+the choice always gets made. Pick from the menu, or use a flag. 52 words in:
 
 | Audience | Out | Result |
 |---|---|---|
-| Colleague *(default)* | 38 w | Hi sir, I just wanted to quickly check in about the deployment we discussed yesterday. I've completed the changes… |
-| Client or senior | 37 w | …I completed the changes… — complete sentences, no contractions |
+| Client or senior *(default)* | 37 w | Hi sir, I just wanted to check in about the deployment we discussed yesterday. I completed the changes and pushed it to staging… — no contractions |
 | Slack / WhatsApp | **18 w** | Hi sir, I've completed the deployment changes and pushed to staging. Please review when you get a chance. |
+
+*Client* is the default because it is the safer one to hit by accident: an over-formal
+Slack message is awkward, an 18-word client email can be too blunt.
 
 Slack mode takes about a second longer: it uses a slower pass that shortens reliably
 (16–18 words every time) instead of a fast one that gave 50, 28, 50 on the same input.

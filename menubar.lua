@@ -24,14 +24,19 @@ local ICON = {
 }
 
 -- Who the message is going to. Names must match TONES in corrector.py.
--- Ordered by how often they are wanted, not alphabetically.
+--
+-- Two audiences, not three. The "Colleague" option was removed deliberately: it
+-- was the do-nothing default, and having it meant most corrections went out
+-- without anyone deciding who was going to read them. One of these two is always
+-- active, so the choice is always made.
+--
+-- corrector.py still has a "default" tone - the CLI uses it, and it is the base
+-- prompt both of these build on. It is simply not offered here.
 local TONES = {
-  { id = "default", label = "Colleague",
-    hint = "normal work register - contractions, brief" },
-  { id = "formal",  label = "Client or senior",
-    hint = "complete sentences, no contractions" },
-  { id = "brief",   label = "Slack / WhatsApp",
-    hint = "fewest words that stay polite" },
+  -- complete sentences, no contractions
+  { id = "formal", label = "Client or senior" },
+  -- fewest words that stay polite
+  { id = "brief",  label = "Slack / WhatsApp" },
 }
 
 local function toneLabel(id)
@@ -177,7 +182,9 @@ function M.attach(state)
       local toneMenu = {}
       for _, t in ipairs(TONES) do
         table.insert(toneMenu, {
-          title = t.label .. "   -   " .. t.hint,
+          -- Label only. The explanation of what each one does belongs in the
+          -- guide, not in a menu you open to make a two-item choice.
+          title = t.label,
           checked = (state.tone == t.id),
           fn = function()
             state.tone = t.id
