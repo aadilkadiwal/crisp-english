@@ -355,7 +355,9 @@ end
 -- line distinguishes them. It is the last statement in the file, so the file
 -- reaching it proves everything above ran.
 do
-  local f = io.open("/tmp/saaf-load.log", "w")
+  -- ~/.saaf/ rather than /tmp: macOS sweeps /tmp files untouched for ~3 days,
+  -- so after a week of uptime the canary vanished and stopped meaning anything.
+  local f = io.open(os.getenv("HOME") .. "/.saaf/load.log", "w")
   if f then
     f:write(string.format("%s  loaded ok\nproject=%s\nmenubar=%s\ntone=%s\n",
       os.date("%Y-%m-%d %H:%M:%S"), tostring(PROJECT),

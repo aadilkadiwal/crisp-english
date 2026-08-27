@@ -47,7 +47,19 @@ local function toneLabel(id)
 end
 
 function M.attach(state)
-  local bar = hs.menubar.new()
+  -- The autosaveName is the whole reason this is not hs.menubar.new().
+  --
+  -- macOS decides where a status item sits, based on the total width of
+  -- everything to its right - which changes as other apps come and go. On a
+  -- notched display that means the icon drifts in and out of the notch on its
+  -- own: measured at x=885, then 1014, then 746, then 814 across a fortnight,
+  -- with 656-856 being invisible. Hiding Hammerspoon's own hammer bought
+  -- headroom but not stability.
+  --
+  -- With an autosaveName, macOS remembers a position the user sets by
+  -- Command-dragging the icon. Drag it clear of the notch once and it stays
+  -- there. That is the only durable fix available from this side.
+  local bar = hs.menubar.new(true, "saaf")
   if not bar then
     return nil                       -- no menubar available; nothing else to do
   end

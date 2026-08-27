@@ -1,0 +1,186 @@
+#!/bin/bash
+#
+# saafctl - control saaf from a terminal.
+#
+# Exists because the menu bar icon is not reliable on a notched Mac. macOS places
+# status items by the total width of everything to their right, which changes as
+# other apps come and go, so the icon drifts in and out of the notch on its own -
+# measured at x=885, 1014, 746 and 814 over a fortnight, where 656-856 is
+# invisible. Nothing in this project can control that placement.
+#
+# So nothing important is allowed to live only in the menu. Everything the menu
+# can do, this can do.
+
+set -uo pipefail
+HS="$(command -v hs || true)"
+B=$'\033[1m'; D=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; N=$'\033[0m'
+
+die() { printf "${R}%s${N}\n" "$1"; exit 1; }
+[ -n "$HS" ] || die "The 'hs' command is missing. Install Hammerspoon, or check it is on PATH."
+
+# Hammerspoon's ipc port drops calls when they arrive back to back - two commands
+# in quick succession is enough. Retry with growing gaps rather than once, or
+# saafctl reports nonsense the moment you use it twice.
+hsc() {
+  local out i
+  for i in 1 2 3 4; do
+    out=$(timeout 15 "$HS" -c "$1" 2>/dev/null | tail -1)
+    [ -n "$out" ] && { printf '%s' "$out"; return 0; }
+    sleep "$i"
+  done
+  return 1
+}
+
+# Three states, not two. "ipc is not answering" and "saaf is not loaded" are
+# different problems with different fixes, and treating an unresponsive port as a
+# missing config produced a frightening and wrong error message.
+require_loaded() {
+  local t
+  t=$(hsc 'return type(saafState)') || {
+    printf "${Y}Hammerspoon is not answering the 'hs' command.${N}\n"
+    printf "  Running:              %s\n" "$(pgrep -q Hammerspoon && echo yes || echo NO)"
+    printf "  Last successful load: %s\n" "$(head -1 ~/.saaf/load.log 2>/dev/null || echo never)"
+    printf "  ${D}Usually transient - wait a moment and retry. If it persists: saafctl reload${N}\n"
+    exit 1
+  }
+  [ "$t" = "table" ] && return 0
+  printf "${R}saaf is not loaded in Hammerspoon.${N}\n"
+  printf "  Hammerspoon answered, but saafState is '%s' rather than a table.\n" "$t"
+  printf "  ${D}The config failed to load. Open Hammerspoon and check its console.${N}\n"
+  exit 1
+}
+
+loaded() { [ "$(hsc 'return type(saafState)' || true)" = "table" ]; }
+
+cmd_status() {
+  printf "\n  ${B}saaf${N}\n\n"
+  printf "  %-14s %s\n" "Hammerspoon" "$(pgrep -q Hammerspoon && printf "${G}running${N}" || printf "${R}not running${N}")"
+  if curl -fsS --max-time 4 http://localhost:11434/api/tags >/dev/null 2>&1; then
+    printf "  %-14s %s\n" "Ollama" "${G}running${N}"
+  else
+    printf "  %-14s %s  ${D}saafctl ollama${N}\n" "Ollama" "${R}not running${N}"
+  fi
+  local m; m=$(ollama ps 2>/dev/null | tail -1 | awk '{print ($1=="NAME"||$1=="")?"":$1}')
+  if [ -n "$m" ]; then
+    printf "  %-14s ${G}%s warm${N}\n" "Model" "$m"
+  else
+    printf "  %-14s ${Y}asleep${N}  ${D}first correction takes ~30s — saafctl warm${N}\n" "Model"
+  fi
+
+  if loaded; then
+    printf "  %-14s %s\n" "Config"  "${G}loaded${N}  ${D}$(head -1 ~/.saaf/load.log 2>/dev/null)${N}"
+    printf "  %-14s %s\n" "Hotkey"  "$([ "$(hsc 'return tostring(saafState.enabled)')" = "true" ] && printf "${G}on${N}  Option+P" || printf "${Y}OFF${N}  saafctl on")"
+    printf "  %-14s %s\n" "Writing for" "$(hsc 'return saafState.tone == "brief" and "Slack / WhatsApp" or "Client or senior"')"
+    printf "  %-14s %s\n" "On-screen"   "$(hsc 'return saafState.showAlerts and "showing what changed" or "silent"')"
+    local geo; geo=$(hsc 'local b=package.loaded["menubar"] and package.loaded["menubar"].bar
+      if not b then return "no icon" end
+      local f=b:frame(); local w=hs.screen.mainScreen():frame().w
+      return string.format("%d|%d", f.x, w)')
+    if [ "$geo" = "no icon" ] || [ -z "$geo" ]; then
+      printf "  %-14s %s\n" "Menu bar" "${Y}no icon${N}"
+    else
+      local x=${geo%|*} w=${geo#*|}
+      local lo=$(( w/2 - 100 )) hi=$(( w/2 + 100 ))
+      if [ "$x" -gt "$hi" ] || [ "$x" -lt "$lo" ]; then
+        printf "  %-14s ${G}visible${N} ${D}at x=%s${N}\n" "Menu bar" "$x"
+      else
+        printf "  %-14s ${Y}hidden behind the notch${N} ${D}(x=%s, notch %s-%s)${N}\n" "Menu bar" "$x" "$lo" "$hi"
+        printf "  %-14s ${D}Command-drag the icon out of the centre once; it stays put.${N}\n" ""
+        printf "  %-14s ${D}Or ignore it — every menu action is a saafctl command.${N}\n" ""
+      fi
+    fi
+  else
+    printf "  %-14s ${R}not loaded${N}\n" "Config"
+  fi
+  printf "\n"
+}
+
+cmd_tone() {
+  case "${1:-}" in
+    client|formal) hsc 'saafState.tone="formal"; return saafState.tone' >/dev/null \
+                     && printf "${G}Writing for: Client or senior${N}  ${D}complete sentences, no contractions${N}\n" \
+                     || die "Could not reach Hammerspoon. Retry in a moment." ;;
+    slack|brief|whatsapp) hsc 'saafState.tone="brief"; return saafState.tone' >/dev/null \
+                     && printf "${G}Writing for: Slack / WhatsApp${N}  ${D}fewest words that stay polite${N}\n" \
+                     || die "Could not reach Hammerspoon. Retry in a moment." ;;
+    ""|show)       printf "Writing for: %s\n" "$(hsc 'return saafState.tone == "brief" and "Slack / WhatsApp" or "Client or senior"')" ;;
+    *)             die "Unknown audience '${1}'. Use: client | slack" ;;
+  esac
+}
+
+cmd_on()  { hsc 'saafState.enabled=true;  return "on"'  >/dev/null && printf "${G}saaf on${N}  Option+P works\n"  || die "Could not reach Hammerspoon. Retry in a moment."; }
+cmd_off() { hsc 'saafState.enabled=false; return "off"' >/dev/null && printf "${Y}saaf off${N}  Option+P does nothing (and will not type a pi)\n" || die "Could not reach Hammerspoon. Retry in a moment."; }
+cmd_alerts()  { require_loaded
+  case "${1:-toggle}" in
+    on)  hsc 'saafState.showAlerts=true;  return 1' >/dev/null; printf "${G}on${N}  each correction shows what changed\n" ;;
+    off) hsc 'saafState.showAlerts=false; return 1' >/dev/null; printf "${G}off${N}  silent again\n" ;;
+    *)   printf "On-screen detail: %s\n" "$(hsc 'return saafState.showAlerts and "on" or "off"')" ;;
+  esac }
+
+cmd_icon() {
+  require_loaded
+  # Take the item out of the menu bar and put it back. macOS may hand it a
+  # different slot; it may not. Cheap to try, and honest about the odds.
+  local before after
+  before=$(hsc 'return string.format("%d", package.loaded["menubar"].bar:frame().x)')
+  hsc 'local b=package.loaded["menubar"].bar; b:removeFromMenuBar(); b:returnToMenuBar(); return 1' >/dev/null
+  sleep 2
+  after=$(hsc 'return string.format("%d", package.loaded["menubar"].bar:frame().x)')
+  printf "icon x: %s -> %s\n" "$before" "$after"
+  printf "${D}If that did not help, Command-drag the icon out of the screen centre.\n"
+  printf "It now has a saved position, so it stays where you put it.${N}\n"
+}
+
+cmd_ollama()  { open -a Ollama 2>/dev/null; printf "Starting Ollama"
+  for _ in $(seq 1 15); do curl -fsS --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1 && break; printf "."; sleep 1; done
+  curl -fsS --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1 \
+    && { printf " ${G}up${N}\n"; cmd_warm; } || printf " ${R}could not confirm${N}\n"; }
+
+cmd_warm()    { curl -fsS --max-time 90 http://localhost:11434/api/generate \
+    -d '{"model":"qwen3:4b","prompt":"hi","stream":false,"think":false,"keep_alive":"8h","options":{"num_predict":1,"num_ctx":2048}}' \
+    >/dev/null 2>&1 && printf "${G}Model warm${N}  next correction ~1.5s\n" || printf "${R}Warm-up failed${N}\n"; }
+
+cmd_reload()  { hsc 'hs.reload(); return 1' >/dev/null 2>&1 || true
+  sleep 5
+  loaded && printf "${G}Reloaded${N}  %s\n" "$(head -1 ~/.saaf/load.log 2>/dev/null)" \
+         || { printf "${Y}ipc did not answer; restarting Hammerspoon${N}\n"; killall Hammerspoon 2>/dev/null; sleep 2; open -a Hammerspoon; sleep 8
+              loaded && printf "${G}Reloaded${N}\n" || printf "${R}Still not loaded — open Hammerspoon and check for errors${N}\n"; }; }
+
+cmd_fix()     { [ $# -gt 0 ] || die "Give me some text: saafctl fix \"i has send the mail\""
+  "$(dirname "$0")/corrector.py" --fast "$*"; }
+
+cmd_stats()   { "$(dirname "$0")/corrector.py" stats; }
+
+usage() { cat <<EOF
+
+  ${B}saafctl${N} — control saaf without the menu bar
+
+  ${B}saafctl status${N}              everything: loaded, model, audience, icon
+  ${B}saafctl tone${N} client|slack   who you are writing for
+  ${B}saafctl on${N} | ${B}off${N}             enable or disable Option+P
+  ${B}saafctl alerts${N} on|off       show what changed on screen
+  ${B}saafctl icon${N}                try to move the icon out of the notch
+  ${B}saafctl ollama${N}              start Ollama and warm the model
+  ${B}saafctl warm${N}                warm the model now
+  ${B}saafctl reload${N}              re-read the saaf files
+  ${B}saafctl fix${N} "text"          correct a sentence right here
+  ${B}saafctl stats${N}               your recurring mistakes
+
+EOF
+}
+
+case "${1:-status}" in
+  status)  cmd_status ;;
+  tone)    shift; cmd_tone "${1:-}" ;;
+  on)      cmd_on ;;
+  off)     cmd_off ;;
+  alerts)  shift; cmd_alerts "${1:-}" ;;
+  icon)    cmd_icon ;;
+  ollama)  cmd_ollama ;;
+  warm)    cmd_warm ;;
+  reload)  cmd_reload ;;
+  fix)     shift; cmd_fix "$@" ;;
+  stats)   cmd_stats ;;
+  -h|--help|help) usage ;;
+  *)       printf "${R}Unknown command '%s'${N}\n" "$1"; usage; exit 1 ;;
+esac
