@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Warm the model into memory at login.
+
+  Without this, the first correction of the day costs 15-50s while Ollama loads
+  the model from disk; afterwards it is ~1s.
+
+  This used to run every 7 hours against a keep_alive of 8h, which was a pair of
+  numbers chosen so the model NEVER unloaded - 2.9GB of a 16GB machine held
+  around the clock, overnight and on battery, whether or not anything was
+  corrected that day. It now runs once, at login, against a keep_alive of 1h: you
+  get a fast first correction of the day, and the memory comes back by itself if
+  you do not use it.
+
+  THE MODEL AND THE NUMBERS ARE NOT WRITTEN HERE ANY MORE. They are read out of
+  crisp-english.conf at run time by the shell below, because this file used to be the
+  fourth of four places `qwen3:4b`, `1h` and `2048` were all repeated - and the
+  one nobody would think to update. Setting CRISP_ENGLISH_MODEL=qwen3:8b in crisp-english.conf
+  now changes what this job warms, which is what you would expect it to do.
+
+  num_ctx matters as much as the model: Ollama keys its loaded-model cache on the
+  options, so warming with a different num_ctx loads the model a second time and
+  wastes the warm-up - and an unset context would reserve 42GB and spill onto the
+  CPU.
+
+  __CRISP_PROJECT__ is replaced with the real project path by install.sh, which
+  is the only thing that knows where you cloned crisp-english.
+
+  Install:
+    ./install.sh          (does this for you, with the path substituted)
+  Remove:
+    launchctl unload -w ~/Library/LaunchAgents/com.crisp-english.preload.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.crisp-english.preload</string>
+
+    <!-- Warm the model UNLESS crisp-english says it is switched off.
+
+         The check is a file, ~/.crisp-english/enabled, that init.lua rewrites whenever
+         the toggle moves. The obvious alternative - asking the running config
+         over `hs -c` - was tried and rejected: Hammerspoon's ipc port drops
+         calls and can hang for minutes (crisp-englishctl carries retry logic for exactly
+         that), and a launch agent that hangs on a flaky socket is worse than no
+         guard at all. Reading a file cannot hang, needs no PATH, and works
+         whether or not Hammerspoon is running.
+
+         Fail-open on purpose: a missing or unreadable file warms the model,
+         which is what this job did before the guard existed. Only a positive
+         "false" suppresses it, so turning crisp-english off is never quietly undone. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>
+[ "$(cat "$HOME/.crisp-english/enabled" 2>/dev/null)" = "false" ] &amp;&amp; exit 0
+
+# Read one setting out of crisp-english.conf: the user's file first, then the project's,
+# then the default. The same precedence as corrector.py, config.lua and crisp-englishctl.
+conf() {
+  for f in "$HOME/.crisp-english/crisp-english.conf" "__CRISP_PROJECT__/crisp-english.conf"; do
+    [ -f "$f" ] || continue
+    v=$(sed -n "s/^$1=//p" "$f" | sed 's/[[:space:]]*#.*$//; s/^"//; s/"$//' | tail -1)
+    [ -n "$v" ] &amp;&amp; { printf %s "$v"; return; }
+  done
+  printf %s "$2"
+}
+
+model=$(conf CRISP_ENGLISH_MODEL qwen3:4b)
+keep=$(conf CRISP_ENGLISH_KEEP_ALIVE 1h)
+ctx=$(conf CRISP_ENGLISH_NUM_CTX 2048)
+
+exec /usr/bin/curl --silent --show-error --max-time 180 \
+  http://localhost:11434/api/generate \
+  -d "{\"model\":\"$model\",\"prompt\":\"hi\",\"stream\":false,\"think\":false,\"keep_alive\":\"$keep\",\"options\":{\"num_predict\":1,\"num_ctx\":$ctx}}"
+        </string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- There is deliberately no StartInterval any more.
+         It was 25200 (7h), set below the old 8h keep_alive so the model was
+         renewed before it could ever expire. That is precisely the behaviour
+         being removed: a repeating warm-up is indistinguishable from pinning the
+         model forever. RunAtLoad alone means one warm model at login, and after
+         that the keep_alive decides.
+
+         The historical reason for the interval was that a single attempt at
+         login could fire before Ollama was listening and never retry. That is
+         still true, and now costs one slow correction rather than a whole day of
+         them - an acceptable trade for not holding 2.9GB all night. -->
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/crisp-english-preload.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/crisp-english-preload.log</string>
+</dict>
+</plist>

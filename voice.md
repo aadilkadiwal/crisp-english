@@ -1,7 +1,18 @@
 # Voice
 
-How corrected text should sound. Edited by hand; read by `corrector.py` as part of
-its system prompt. Keep it short — every line here costs latency on every keystroke.
+How corrected text should sound.
+
+**This file is the specification, not the implementation.** It used to claim it was
+"read by `corrector.py` as part of its system prompt", and it was not — nothing
+loaded it, so it was free to drift from the prompt and the rules it described. It is
+not loaded now either, on purpose: it is 60 lines, and every line of prompt costs
+latency on every correction.
+
+So read it as intent, and `blocklist.py` as fact. The **Rules with a regex behind
+them** list at the bottom names the phrases that layer is meant to catch; the prose
+above it describes what `SYSTEM` and `FAST_SYSTEM` in `corrector.py` ask the model
+for. Nothing checks either automatically — if you change a rule, change this too,
+and if the two disagree, `blocklist.py` is what actually runs.
 
 ## Who is writing
 
@@ -51,8 +62,62 @@ message and are omitted.
 - No jokes, no opinions he did not express, no edge. Sounding human means sounding
   like a normal person at work, not like a personality.
 
-## Banned words and phrases
+## Which of these a rule can catch
 
-Enforced mechanically in `blocklist.py`, not by asking the model — benchmarking
-showed the model ignores prompt-level bans about a third of the time. See that file
-for the authoritative list.
+Benchmarking showed the model ignores prompt-level bans about a third of the time, so
+anything closed-form is enforced in `blocklist.py` instead of being asked for. Not
+everything above is closed-form:
+
+- `represents` is a legitimate word — "this represents the third delay" is fine.
+  Rewriting it mechanically would break correct sentences, so it stays prompt-level
+  guidance and is deliberately absent from the list below.
+- "Every sentence the same shape", "three-item lists" and hedge stacks are judgments
+  about a whole message, not string matches. Prompt-level, and unverifiable by rule.
+
+Everything else is a rule, and the rules are tested.
+
+## Rules with a regex behind them
+
+`blocklist.py` is meant to catch every phrase below — by rewriting it, by rejecting
+the variant and regenerating, or by warning about it. Verify one by hand:
+
+```bash
+python3 -c "import blocklist; print(blocklist.clean('kindly do the needful'))"
+python3 blocklist.py            # runs its own sample inputs
+```
+
+`That said` was on this list and enforced nowhere until the two were compared by
+hand, which is the failure mode to watch for.
+
+```text
+kindly
+revert back
+do the needful
+pls
+asap
+Additionally
+Furthermore
+Moreover
+That said
+Not only
+leverage
+utilize
+delve
+circle back
+touch base
+hope this email finds you well
+Certainly
+Absolutely
+I'd be happy to
+Please be informed that
+Looking forward to hearing from you
+serves as
+stands as
+functions as
+in order to
+provide clarification
+perform a review
+do the review
+make a decision
+give confirmation
+```
