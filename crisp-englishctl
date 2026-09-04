@@ -1,0 +1,508 @@
+#!/bin/bash
+#
+# crisp-englishctl - control crisp-english from a terminal.
+#
+# Exists because the menu bar icon is not reliable on a notched Mac. macOS places
+# status items by the total width of everything to their right, which changes as
+# other apps come and go, so the icon drifts in and out of the notch on its own -
+# measured at x=885, 1014, 746 and 814 over a fortnight, where 656-856 is
+# invisible. Nothing in this project can control that placement.
+#
+# So nothing important is allowed to live only in the menu. Everything the menu
+# can do, this can do.
+
+set -uo pipefail
+
+# Where the project actually is.
+#
+# This used to be `$(dirname "$0")`, and $0 is the path used to INVOKE the
+# script, not the file it resolves to. install.sh symlinks this into
+# /usr/local/bin, so through the symlink dirname gave /usr/local/bin and both
+# `crisp-englishctl fix` and `crisp-englishctl stats` failed with:
+#
+#   /usr/local/bin/crisp-englishctl: line 234: /usr/local/bin/corrector.py: No such file
+#
+# i.e. the two commands that do not need Hammerspoon at all were the two that
+# only worked when run by full path - in a script whose entire purpose is being
+# reachable when the menu bar is not. Resolve the link chain instead.
+SELF="$0"
+while [ -L "$SELF" ]; do
+  link="$(readlink "$SELF")"
+  case "$link" in
+    /*) SELF="$link" ;;
+    *)  SELF="$(dirname "$SELF")/$link" ;;
+  esac
+done
+PROJECT="$(cd "$(dirname "$SELF")" && pwd -P)"
+
+# Settings come from crisp-english.conf, the one file Python, Lua, shell and launchd all
+# read. Three comments in this project used to say "THIS NUMBER EXISTS IN FOUR
+# PLACES"; this is the shell end of the fix. Precedence matches corrector.py:
+# environment, then ~/.crisp-english/crisp-english.conf, then the project file, then the default.
+crisp_config() {
+  local key="$1" default="$2" value=""
+  local env_value="${!key:-}"
+  if [ -n "$env_value" ]; then
+    printf '%s' "$env_value"
+    return
+  fi
+  local file
+  for file in "$HOME/.crisp-english/crisp-english.conf" "$PROJECT/crisp-english.conf"; do
+    [ -f "$file" ] || continue
+    value=$(sed -n "s/^${key}=//p" "$file" | sed 's/[[:space:]]*#.*$//; s/^"//; s/"$//' | tail -1)
+    [ -n "$value" ] && { printf '%s' "$value"; return; }
+  done
+  printf '%s' "$default"
+}
+
+MODEL="$(crisp_config CRISP_ENGLISH_MODEL qwen3:4b)"
+KEEP_ALIVE="$(crisp_config CRISP_ENGLISH_KEEP_ALIVE 1h)"
+NUM_CTX="$(crisp_config CRISP_ENGLISH_NUM_CTX 2048)"
+OLLAMA="http://localhost:11434"
+
+HS="$(command -v hs || true)"
+B=$'\033[1m'; D=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; N=$'\033[0m'
+
+die() { printf "${R}%s${N}\n" "$1"; exit 1; }
+
+# Commands that do not need Hammerspoon at all must not be blocked by a missing
+# `hs`: fix, stats, last and again are pure corrector.py, and they are exactly
+# what you reach for when the rest of the install is in doubt.
+need_hs() {
+  [ -n "$HS" ] || die "The 'hs' command is missing. Install Hammerspoon, or check it is on PATH."
+}
+
+# Hammerspoon's ipc port drops calls when they arrive back to back - two commands
+# in quick succession is enough. Retry with growing gaps rather than once, or
+# crisp-englishctl reports nonsense the moment you use it twice.
+hsc() {
+  need_hs
+  local out i
+  for i in 1 2 3 4; do
+    out=$(timeout 15 "$HS" -c "$1" 2>/dev/null | tail -1)
+    [ -n "$out" ] && { printf '%s' "$out"; return 0; }
+    sleep "$i"
+  done
+  return 1
+}
+
+# For commands that CHANGE something, rather than ask something.
+#
+# hsc() above retries a dropped reply by sending the command again - correct for
+# a query, actively harmful for a toggle. A retried setEnabled(true) ran the
+# whole start-Ollama sequence a second time and corrupted the ownership flag.
+# Send once, ignore the reply, and confirm the result by other means.
+hsc_once() { need_hs; timeout 15 "$HS" -c "$1" >/dev/null 2>&1 || true; }
+
+# Did the toggle actually land?
+#
+# The ipc port drops replies often enough that trusting a command's return value
+# reported "Could not reach Hammerspoon" for an off that had in fact worked -
+# the model was released and the flag was written, but crisp-englishctl said it failed.
+# init.lua writes ~/.crisp-english/enabled as the first thing setEnabled does, before any
+# of the slow Ollama work, so that file is the honest answer. Poll it instead.
+wait_flag() {
+  local want="$1" i
+  for i in $(seq 1 24); do
+    [ "$(cat "$HOME/.crisp-english/enabled" 2>/dev/null)" = "$want" ] && return 0
+    sleep 0.25
+  done
+  return 1
+}
+
+# Read a field out of ~/.crisp-english/state, which init.lua writes on every change.
+#
+# Preferred over asking the running config over ipc for anything we only want to
+# DISPLAY: it cannot hang, it needs no retry loop, and it is correct even while
+# Hammerspoon is starting up.
+state_field() {
+  local key="$1" default="${2:-}" value
+  value=$(sed -n "s/^${key}=//p" "$HOME/.crisp-english/state" 2>/dev/null | tail -1)
+  printf '%s' "${value:-$default}"
+}
+
+tone_label() {
+  case "$1" in
+    brief) printf 'Slack / WhatsApp' ;;
+    formal) printf 'Client or senior' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# Three states, not two. "ipc is not answering" and "crisp-english is not loaded" are
+# different problems with different fixes, and treating an unresponsive port as a
+# missing config produced a frightening and wrong error message.
+require_loaded() {
+  local t
+  t=$(hsc 'return type(crispEnglishState)') || {
+    printf "${Y}Hammerspoon is not answering the 'hs' command.${N}\n"
+    printf "  Running:              %s\n" "$(pgrep -q Hammerspoon && echo yes || echo NO)"
+    printf "  Last successful load: %s\n" "$(head -1 ~/.crisp-english/load.log 2>/dev/null || echo never)"
+    printf "  ${D}Usually transient - wait a moment and retry. If it persists: crisp-englishctl reload${N}\n"
+    # "Usually transient" was the whole message, and it is wrong about the worst
+    # case. A syntax error in init.lua means the file never runs, so
+    # require("hs.ipc") never runs either - and a dead ipc port looks exactly
+    # like this. Measured: a rename turned `local function crisp()` into
+    # `crisp-english()` and the only symptom was this message, repeating.
+    if pgrep -q Hammerspoon; then
+      printf "  ${D}If Hammerspoon IS running and this keeps happening, the config${N}\n"
+      printf "  ${D}probably does not compile - a syntax error stops the ipc port from${N}\n"
+      printf "  ${D}ever opening, so there is nothing left to ask. Open Hammerspoon${N}\n"
+      printf "  ${D}and read its console: the error names the file and the line.${N}\n"
+    fi
+    exit 1
+  }
+  [ "$t" = "table" ] && return 0
+  printf "${R}crisp-english is not loaded in Hammerspoon.${N}\n"
+  printf "  Hammerspoon answered, but crispEnglishState is '%s' rather than a table.\n" "$t"
+  printf "  ${D}The config failed to load. Open Hammerspoon and check its console.${N}\n"
+  exit 1
+}
+
+loaded() { [ -n "$HS" ] && [ "$(hsc 'return type(crispEnglishState)' || true)" = "table" ]; }
+
+# Three answers, not two: loaded, absent, or "ipc did not answer".
+#
+# loaded() above collapses the last two into false, and cmd_status printed a red
+# "not loaded" for both. Observed: it said the config was not loaded while
+# `hs -c 'return type(crispEnglishState)'` returned `table` on three consecutive
+# tries. A command whose job is to be trustworthy when the menu bar is invisible
+# must not report a dropped call as a definite fault. Same fix as the menu bar
+# geometry line above.
+config_state() {
+  [ -n "$HS" ] || { printf 'unknown'; return; }
+  local t; t=$(hsc 'return type(crispEnglishState)' || true)
+  if [ -z "$t" ]; then printf 'unknown'
+  elif [ "$t" = "table" ]; then printf 'loaded'
+  else printf 'absent'
+  fi
+}
+
+# Did a reload actually land? Ask the file, not the port.
+#
+# init.lua writes ~/.crisp-english/load.log as the last statement of a
+# successful load, so a timestamp newer than the one before the reload proves it
+# ran - and reading a file cannot be dropped the way an ipc call can. This is
+# the same reasoning wait_flag already uses for the on/off toggle. Measured: the
+# ipc check reported "Still not loaded" for a reload whose load.log showed it
+# had loaded fine two seconds earlier.
+load_stamp() { head -1 ~/.crisp-english/load.log 2>/dev/null; }
+
+wait_reload() {
+  local before="$1" i
+  for i in $(seq 1 30); do
+    [ "$(load_stamp)" != "$before" ] && [ -n "$(load_stamp)" ] && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+cmd_status() {
+  printf "\n  ${B}crisp-english${N}\n\n"
+  printf "  %-14s %s\n" "Hammerspoon" "$(pgrep -q Hammerspoon && printf "${G}running${N}" || printf "${R}not running${N}")"
+  if curl -fsS --max-time 4 "$OLLAMA/api/tags" >/dev/null 2>&1; then
+    printf "  %-14s %s\n" "Ollama" "${G}running${N}"
+  else
+    printf "  %-14s %s  ${D}crisp-englishctl ollama${N}\n" "Ollama" "${R}not running${N}"
+  fi
+  # Straight from Ollama rather than `ollama ps`, because the interesting part is
+  # now how much is held and for how long - "is crisp-english using my RAM right now" is
+  # the question this whole feature exists to answer.
+  local held
+  held=$(curl -fsS --max-time 4 "$OLLAMA/api/ps" 2>/dev/null | MODEL="$MODEL" python3 -c '
+import json, os, sys, datetime
+want = os.environ.get("MODEL", "")
+try:
+    models = json.load(sys.stdin).get("models", [])
+except Exception:
+    sys.exit()
+# Only OUR model. Reporting whatever happened to be first said "warm" when
+# something else entirely was resident and crisp-english still faced a cold load.
+for m in models:
+    if want and want not in (m.get("name"), m.get("model")):
+        continue
+    left = ""
+    try:
+        exp = datetime.datetime.fromisoformat(m["expires_at"])
+        mins = int((exp - datetime.datetime.now(exp.tzinfo)).total_seconds() // 60)
+        if mins >= 0:
+            left = f", frees in {mins} min"
+    except Exception:
+        pass
+    # Pulled into locals first: this program is inside a single-quoted shell
+    # string, so a quote inside an f-string brace has nowhere safe to go.
+    name = m["name"]
+    gb = m["size"] / 1e9
+    print(f"{name} warm|{gb:.1f} GB held{left}")
+    break
+' 2>/dev/null)
+  if [ -n "$held" ]; then
+    printf "  %-14s ${G}%s${N}  ${D}%s${N}\n" "Model" "${held%%|*}" "${held#*|}"
+  else
+    printf "  %-14s ${Y}asleep${N}  ${D}next correction takes ~30s — crisp-englishctl warm${N}\n" "Model"
+  fi
+
+  # The settings come from ~/.crisp-english/state, not from ipc.
+  #
+  # init.lua persists enabled, tone and showAlerts on every change, so all three
+  # can be read from a file that cannot drop a call or hang. That matters here
+  # more than anywhere: a dropped ipc reply used to take the WHOLE detail block
+  # with it, so the one command you reach for when the menu bar is invisible
+  # showed you nothing at all. Now only the two genuinely-live facts - is the
+  # config loaded, and where is the icon - depend on ipc, and each says so on
+  # its own line when it cannot be read.
+  local cfg; cfg=$(config_state)
+  case "$cfg" in
+    unknown) printf "  %-14s ${D}could not read (ipc did not answer; retry)${N}  ${D}last load: %s${N}\n" \
+               "Config" "$(load_stamp)" ;;
+    absent)  printf "  %-14s ${R}not loaded${N}  ${D}open Hammerspoon and check its console${N}\n" "Config" ;;
+    *)       printf "  %-14s %s\n" "Config" "${G}loaded${N}  ${D}$(load_stamp)${N}" ;;
+  esac
+
+  if [ "$(state_field enabled true)" = "true" ]; then
+    printf "  %-14s ${G}on${N}  Option+P\n" "Hotkey"
+  else
+    printf "  %-14s ${Y}OFF${N}  crisp-englishctl on\n" "Hotkey"
+  fi
+
+  local auto; auto=$(crisp_config CRISP_ENGLISH_AUTO_TONE 1)
+  local autoOn=""; case "$auto" in 1|true|yes|on) autoOn="yes" ;; esac
+  printf "  %-14s %s%s\n" "Writing for" "$(tone_label "$(state_field tone formal)")" \
+    "$([ -n "$autoOn" ] && printf " ${D}(fallback; the app decides)${N}" || true)"
+
+  if [ -n "$autoOn" ] && [ "$cfg" = "loaded" ]; then
+    # What the NEXT correction would actually use, from the app in front right
+    # now. The most common confused question about auto-tone is "which one am I
+    # getting", and this answers it exactly. Needs ipc, so it is skipped rather
+    # than guessed at when ipc is not answering.
+    local front
+    front=$(hsc 'local a = hs.application.frontmostApplication()
+      local name = a and a:name() or ""
+      return string.format("%s|%s", name, tostring(crispEnglishState.audienceFor(name)))')
+    [ -n "$front" ] && printf "  %-14s ${D}%s → %s${N}\n" "" "${front%%|*}" "$(tone_label "${front#*|}")"
+  fi
+
+  if [ "$(state_field showAlerts false)" = "true" ]; then
+    printf "  %-14s showing what changed\n" "On-screen"
+  else
+    printf "  %-14s silent\n" "On-screen"
+  fi
+
+  if [ "$cfg" = "loaded" ]; then
+    local geo; geo=$(hsc 'local b=package.loaded["menubar"] and package.loaded["menubar"].bar
+      if not b then return "no icon" end
+      local f=b:frame(); local w=hs.screen.mainScreen():frame().w
+      return string.format("%d|%d", f.x, w)')
+    # Three answers, not two. An empty reply means the ipc call failed, which is
+    # NOT the same as there being no icon - and saying "no icon" for a dropped
+    # reply is a false alarm from the one command that exists because the icon
+    # cannot be trusted. Observed: reported "no icon" while the item was sitting
+    # at x=779 showing a diamond.
+    if [ -z "$geo" ]; then
+      printf "  %-14s ${D}could not read (ipc did not answer; retry)${N}\n" "Menu bar"
+    elif [ "$geo" = "no icon" ]; then
+      printf "  %-14s %s\n" "Menu bar" "${Y}no icon${N}"
+    else
+      local x=${geo%|*} w=${geo#*|}
+      local lo=$(( w/2 - 100 )) hi=$(( w/2 + 100 ))
+      if [ "$x" -gt "$hi" ] || [ "$x" -lt "$lo" ]; then
+        printf "  %-14s ${G}visible${N} ${D}at x=%s${N}\n" "Menu bar" "$x"
+      else
+        printf "  %-14s ${Y}hidden behind the notch${N} ${D}(x=%s, notch %s-%s)${N}\n" "Menu bar" "$x" "$lo" "$hi"
+        printf "  %-14s ${D}Command-drag the icon out of the centre once; it stays put.${N}\n" ""
+        printf "  %-14s ${D}Or ignore it — every menu action is a crisp-englishctl command.${N}\n" ""
+      fi
+    fi
+  fi
+  printf "\n"
+}
+
+# setTone rather than assigning crispEnglishState.tone: it validates the name, persists
+# it to ~/.crisp-english/state so a reload does not undo it, and re-renders the icon.
+cmd_tone() {
+  local want=""
+  case "${1:-}" in
+    client|formal)        want="formal" ;;
+    slack|brief|whatsapp) want="brief" ;;
+    ""|show)
+      printf "Writing for: %s\n" "$(tone_label "$(state_field tone formal)")"
+      if [ "$(hsc 'return tostring(crispEnglishState.autoTone)' || true)" = "true" ]; then
+        printf "${D}This is the fallback. Slack and Mail choose for themselves —${N}\n"
+        printf "${D}set CRISP_ENGLISH_AUTO_TONE=0 in crisp-english.conf to always use this choice.${N}\n"
+      fi
+      return ;;
+    *) die "Unknown audience '${1}'. Use: client | slack" ;;
+  esac
+  require_loaded
+  hsc "crispEnglishState.setTone('$want'); return crispEnglishState.tone" >/dev/null \
+    || die "Could not reach Hammerspoon. Retry in a moment."
+  if [ "$want" = "formal" ]; then
+    printf "${G}Writing for: Client or senior${N}  ${D}complete sentences, no contractions${N}\n"
+  else
+    printf "${G}Writing for: Slack / WhatsApp${N}  ${D}fewest words that stay polite${N}\n"
+  fi
+}
+
+# Both go through setEnabled rather than setting .enabled directly, so the
+# terminal and the menu bar cannot mean two different things by "off" - which is
+# the entire promise this script makes. setEnabled also starts Ollama on, and
+# releases the model (and quits Ollama, if crisp-english started it) on off.
+#
+# Neither trusts the ipc reply; both confirm against the flag file. See
+# wait_flag above for why.
+cmd_on()  {
+  hsc_once 'crispEnglishState.setEnabled(true)'
+  wait_flag true || die "Could not reach Hammerspoon. Retry in a moment."
+  printf "${G}crisp-english on${N}  Option+P works  ${D}starting Ollama and warming the model...${N}\n"; }
+
+cmd_off() {
+  hsc_once 'crispEnglishState.setEnabled(false)'
+  wait_flag false || die "Could not reach Hammerspoon. Retry in a moment."
+  printf "${Y}crisp-english off${N}  Option+P does nothing (and will not type a pi)\n"
+  # Report what actually happened rather than what was intended: give the
+  # teardown a moment, then look. Observed state cannot be wrong about this,
+  # and it costs no extra ipc call.
+  sleep 3
+  if pgrep -xq Ollama; then
+    printf "  ${D}model released; Ollama left running — crisp-english did not start it${N}\n"
+  else
+    printf "  ${D}model released, and Ollama quit — crisp-english had started it${N}\n"
+  fi; }
+
+# Free the memory without turning crisp-english off. The hotkey keeps working; the next
+# correction just pays a cold load.
+cmd_unload() { curl -fsS --max-time 15 "$OLLAMA/api/generate" \
+    -d "{\"model\":\"$MODEL\",\"prompt\":\"\",\"keep_alive\":0}" >/dev/null 2>&1 \
+    && printf "${G}Model released${N}  next correction takes ~30s\n" \
+    || printf "${R}Could not reach Ollama${N}\n"; }
+
+cmd_alerts()  { require_loaded
+  case "${1:-toggle}" in
+    on)  hsc 'crispEnglishState.setAlerts(true);  return 1' >/dev/null; printf "${G}on${N}  each correction shows what changed\n" ;;
+    off) hsc 'crispEnglishState.setAlerts(false); return 1' >/dev/null; printf "${G}off${N}  silent again\n" ;;
+    *)   printf "On-screen detail: %s\n" "$(hsc 'return crispEnglishState.showAlerts and "on" or "off"')" ;;
+  esac }
+
+cmd_icon() {
+  require_loaded
+  # Take the item out of the menu bar and put it back. macOS may hand it a
+  # different slot; it may not. Cheap to try, and honest about the odds.
+  local before after
+  before=$(hsc 'return string.format("%d", package.loaded["menubar"].bar:frame().x)')
+  hsc 'local b=package.loaded["menubar"].bar; b:removeFromMenuBar(); b:returnToMenuBar(); return 1' >/dev/null
+  sleep 2
+  after=$(hsc 'return string.format("%d", package.loaded["menubar"].bar:frame().x)')
+  printf "icon x: %s -> %s\n" "$before" "$after"
+  printf "${D}If that did not help, Command-drag the icon out of the screen centre.\n"
+  printf "It now has a saved position, so it stays where you put it.${N}\n"
+}
+
+cmd_ollama()  { open -a Ollama 2>/dev/null; printf "Starting Ollama"
+  for _ in $(seq 1 15); do curl -fsS --max-time 2 "$OLLAMA/api/tags" >/dev/null 2>&1 && break; printf "."; sleep 1; done
+  curl -fsS --max-time 2 "$OLLAMA/api/tags" >/dev/null 2>&1 \
+    && { printf " ${G}up${N}\n"; cmd_warm; } || printf " ${R}could not confirm${N}\n"; }
+
+# num_ctx must match every other request or Ollama loads the model a second
+# time; both numbers come from crisp-english.conf now rather than being retyped here.
+cmd_warm()    { curl -fsS --max-time 90 "$OLLAMA/api/generate" \
+    -d "{\"model\":\"$MODEL\",\"prompt\":\"hi\",\"stream\":false,\"think\":false,\"keep_alive\":\"$KEEP_ALIVE\",\"options\":{\"num_predict\":1,\"num_ctx\":$NUM_CTX}}" \
+    >/dev/null 2>&1 && printf "${G}Model warm${N}  next correction ~1.5s\n" || printf "${R}Warm-up failed${N}\n"; }
+
+cmd_reload()  {
+  local before; before=$(load_stamp)
+  hsc_once 'hs.reload()'
+  if wait_reload "$before"; then
+    printf "${G}Reloaded${N}  %s\n" "$(load_stamp)"
+    return 0
+  fi
+  printf "${Y}No reload confirmed; restarting Hammerspoon${N}\n"
+  killall Hammerspoon 2>/dev/null
+  sleep 2
+  open -a Hammerspoon
+  if wait_reload "$before"; then
+    printf "${G}Reloaded${N}  %s\n" "$(load_stamp)"
+  else
+    printf "${R}Still not loaded${N}\n"
+    printf "  ${D}The config may not compile - a syntax error stops it dead and takes${N}\n"
+    printf "  ${D}the ipc port with it, so nothing can be asked over ipc. Open${N}\n"
+    printf "  ${D}Hammerspoon and read its console: it names the file and the line.${N}\n"
+  fi; }
+
+cmd_fix()     { [ $# -gt 0 ] || die "Give me some text: crisp-englishctl fix \"i has send the mail\""
+  "$PROJECT/corrector.py" --fast "$*"; }
+
+cmd_stats()   { "$PROJECT/corrector.py" stats; }
+
+# What the last correction did, and a way to change your mind about it.
+#
+# In silent mode the correction lands without ever being shown, and Cmd-Z is not
+# reliable in every Electron app - so "what did it just replace" had no answer.
+# `again` re-runs the SAME text for the other audience, which is the actual
+# recovery: a client email that came back too terse is one command from formal,
+# without retyping it.
+cmd_last()    { "$PROJECT/corrector.py" last; }
+
+cmd_again()   {
+  case "${1:-}" in
+    client|formal)        "$PROJECT/corrector.py" again --formal ;;
+    slack|brief|whatsapp) "$PROJECT/corrector.py" again --brief ;;
+    "")                   "$PROJECT/corrector.py" again ;;
+    *) die "Unknown audience '${1}'. Use: crisp-englishctl again [client|slack]" ;;
+  esac }
+
+# Delete the history. The log is the one place messages accumulate on disk, and
+# a tool that promises nothing leaves your Mac should make it easy to empty.
+cmd_forget()  {
+  local log="$HOME/.crisp-english/mistakes.log" n=0
+  [ -f "$log" ] && n=$(wc -l < "$log" | tr -d ' ')
+  printf "Delete %s corrections from %s? [y/N] " "$n" "$log"
+  read -r answer
+  case "$answer" in
+    y|Y|yes) rm -f "$log" && printf "${G}History deleted${N}  stats start from zero\n" ;;
+    *) printf "Left alone\n" ;;
+  esac }
+
+usage() { cat <<EOF
+
+  ${B}crisp-englishctl${N} — control crisp-english without the menu bar
+
+  ${B}crisp-englishctl status${N}              everything: loaded, model, audience, icon
+  ${B}crisp-englishctl tone${N} client|slack   who you are writing for
+  ${B}crisp-englishctl on${N} | ${B}off${N}             enable or disable Option+P, and start/release Ollama
+                              ${D}(or press Shift+Option+P anywhere)${N}
+  ${B}crisp-englishctl alerts${N} on|off       show what changed on screen
+  ${B}crisp-englishctl icon${N}                try to move the icon out of the notch
+  ${B}crisp-englishctl ollama${N}              start Ollama and warm the model
+  ${B}crisp-englishctl warm${N}                warm the model now
+  ${B}crisp-englishctl unload${N}              free the model's RAM, leave crisp-english on
+  ${B}crisp-englishctl reload${N}              re-read the crisp-english files and crisp-english.conf
+  ${B}crisp-englishctl fix${N} "text"          correct a sentence right here
+  ${B}crisp-englishctl last${N}                what the last correction changed
+  ${B}crisp-englishctl again${N} [client|slack] redo the last one, optionally for the other audience
+  ${B}crisp-englishctl stats${N}               your recurring mistakes, last 30 days vs before
+  ${B}crisp-englishctl forget${N}              delete the correction history
+
+  ${D}Settings live in $PROJECT/crisp-english.conf${N}
+
+EOF
+}
+
+case "${1:-status}" in
+  status)  cmd_status ;;
+  tone)    shift; cmd_tone "${1:-}" ;;
+  on)      cmd_on ;;
+  unload)  cmd_unload ;;
+  off)     cmd_off ;;
+  alerts)  shift; cmd_alerts "${1:-}" ;;
+  icon)    cmd_icon ;;
+  ollama)  cmd_ollama ;;
+  warm)    cmd_warm ;;
+  reload)  cmd_reload ;;
+  fix)     shift; cmd_fix "$@" ;;
+  last)    cmd_last ;;
+  again)   shift; cmd_again "${1:-}" ;;
+  stats)   cmd_stats ;;
+  forget)  cmd_forget ;;
+  -h|--help|help) usage ;;
+  *)       printf "${R}Unknown command '%s'${N}\n" "$1"; usage; exit 1 ;;
+esac

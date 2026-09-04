@@ -1,4 +1,4 @@
--- saaf menubar - status and controls, without a popup.
+-- crisp-english menubar - status and controls, without a popup.
 --
 -- This exists because running silent removed every signal the tool used to give.
 -- "Nothing happened" became both the look of success and the symptom of every
@@ -11,6 +11,11 @@
 --
 -- Interface: attach(state) where state is the table init.lua owns. This file only
 -- reads and writes fields on it; it knows nothing about clipboards or hotkeys.
+
+-- Ollama lives in its own module now. This file used to hold its own copies of
+-- the /api/ps and /api/generate calls, which is how the warm-up here and the
+-- one in corrector.py were free to disagree about num_ctx.
+local ollama = require("ollama")
 
 local M = {}
 
@@ -59,12 +64,23 @@ function M.attach(state)
   -- With an autosaveName, macOS remembers a position the user sets by
   -- Command-dragging the icon. Drag it clear of the notch once and it stays
   -- there. That is the only durable fix available from this side.
-  local bar = hs.menubar.new(true, "saaf")
+  -- "crisp", not "crisp-english", and it must stay that way.
+  --
+  -- This string is the key macOS files the icon's saved position under. The
+  -- position is the ONLY durable fix for the notch problem - drag the icon clear
+  -- once and it stays - and changing the name throws it away, silently, sending
+  -- the icon back to wherever macOS feels like putting it. The rename is not
+  -- worth costing every existing install its position.
+  local bar = hs.menubar.new(true, "crisp")
   if not bar then
     return nil                       -- no menubar available; nothing else to do
   end
 
   local warm, busy = false, false
+  -- Minutes until Ollama drops the model, or nil when it cannot be read.
+  -- Shown in the menu because "is crisp-english holding my RAM right now" became a
+  -- real question the moment the model started unloading itself.
+  local freesIn, heldGB = nil, nil
 
   local function icon()
     if not state.enabled then return ICON.disabled end
@@ -75,69 +91,47 @@ function M.attach(state)
   local function render()
     bar:setTitle(icon())
     if not state.enabled then
-      bar:setTooltip("saaf - off")
+      bar:setTooltip("crisp-english - off")
       return
     end
     -- The tone is in the tooltip because leaving it on "Client or senior" and
     -- forgetting is the obvious way to be surprised by an output. Hovering
     -- answers it without opening the menu.
-    bar:setTooltip(string.format("saaf - %s - writing for: %s",
+    --
+    -- With auto-tone on, the honest answer names the fallback rather than the
+    -- audience: the app you are typing in may well override it a second later.
+    bar:setTooltip(string.format("crisp-english - %s - writing for: %s%s",
       warm and "ready" or "model asleep, next one is slow",
-      toneLabel(state.tone)))
+      toneLabel(state.tone),
+      state.autoTone and " (unless the app says otherwise)" or ""))
   end
 
   -- Ask Ollama what is resident. Async, so a hung or absent Ollama never stalls
   -- the menubar or the hotkey.
   local function refreshWarm(done)
-    hs.http.asyncGet(state.ollama .. "/api/ps", nil, function(status, body)
-      local isWarm = false
-      if status == 200 and body then
-        local ok, parsed = pcall(hs.json.decode, body)
-        if ok and type(parsed) == "table" and parsed.models then
-          for _, m in ipairs(parsed.models) do
-            if m.name == state.model or m.model == state.model then
-              isWarm = true
-              break
-            end
-          end
-        end
-      end
-      warm = isWarm
+    ollama.loaded(state, function(isWarm, minutesLeft, gb)
+      warm, freesIn, heldGB = isWarm, minutesLeft, gb
       render()
       if done then done(isWarm) end
     end)
   end
 
-  -- Ollama reachable at all? Distinct from warm: not running vs running-but-cold
-  -- need different menu entries, because only one of them is fixable by waiting.
-  local function ollamaUp(done)
-    hs.http.asyncGet(state.ollama .. "/api/tags", nil, function(status)
-      done(status == 200)
-    end)
-  end
-
   local function warmNow()
-    -- Same options corrector.py sends. Ollama keys its loaded-model cache on
-    -- these, so a mismatch would load the model a SECOND time and waste the
-    -- warm-up entirely.
-    local body = hs.json.encode({
-      model = state.model, prompt = "hi", stream = false, think = false,
-      keep_alive = "8h", options = { num_predict = 1, num_ctx = 2048 },
-    })
-    hs.http.asyncPost(state.ollama .. "/api/generate", body,
-      { ["Content-Type"] = "application/json" },
-      function() refreshWarm() end)
+    ollama.warm(state, function() refreshWarm() end)
     render()
   end
 
+  -- Drop the model without turning crisp-english off. The hotkey keeps working; the next
+  -- correction just pays a cold load. This is here because the menu is where
+  -- someone notices the machine is tight, and making them turn the whole tool
+  -- off to reclaim the memory would be a worse trade than waiting 30s once.
+  local function unloadNow()
+    ollama.unload(state, function() refreshWarm() end)
+  end
+
   local function startOllama()
-    hs.execute("open -a Ollama")
-    -- Give it time to bind the port, then warm the model so the first correction
-    -- after a cold boot is not also a cold load.
-    hs.timer.doAfter(4, function()
-      ollamaUp(function(up)
-        if up then warmNow() end
-      end)
+    ollama.start(state, function(up)
+      if up then warmNow() else refreshWarm() end
     end)
   end
 
@@ -145,7 +139,7 @@ function M.attach(state)
   -- and only done when the menu is opened.
   local function todayCount()
     local today = os.date("%Y-%m-%d")
-    local f = io.open(os.getenv("HOME") .. "/.saaf/mistakes.log", "r")
+    local f = io.open(os.getenv("HOME") .. "/.crisp-english/mistakes.log", "r")
     if not f then return 0 end
     local n = 0
     for line in f:lines() do
@@ -159,7 +153,7 @@ function M.attach(state)
   -- output is an aligned bar chart, and hs.alert is not monospaced so it would
   -- render as ragged nonsense.
   local function showStats()
-    local out = "/tmp/saaf-stats.txt"
+    local out = "/tmp/crisp-english-stats.txt"
     hs.task.new(state.python, function(_, stdout, stderr)
       local f = io.open(out, "w")
       if f then
@@ -172,20 +166,30 @@ function M.attach(state)
 
   bar:setMenu(function()
     local menu = {
-      { title = state.enabled and "Turn saaf off" or "Turn saaf on",
-        fn = function()
-          state.enabled = not state.enabled
-          render()
-        end },
+      -- Not `state.enabled = not state.enabled` any more. setEnabled lives in
+      -- init.lua and also starts or releases Ollama, so the menu and
+      -- `crisp-englishctl on|off` cannot mean two different things.
+      { title = state.enabled and "Turn crisp-english off" or "Turn crisp-english on",
+        fn = function() state.setEnabled(not state.enabled) end },
       { title = "-" },
     }
 
     if state.enabled then
-      table.insert(menu, {
-        title = warm and "Model: ready" or "Model: asleep (next one takes ~30s)",
-        disabled = true,
-      })
+      local modelRow
       if not warm then
+        modelRow = "Model: asleep (next one takes ~30s)"
+      elseif freesIn and heldGB then
+        modelRow = string.format("Model: ready (frees %.1f GB in %d min)",
+                                 heldGB, freesIn)
+      elseif freesIn then
+        modelRow = string.format("Model: ready (frees in %d min)", freesIn)
+      else
+        modelRow = "Model: ready"
+      end
+      table.insert(menu, { title = modelRow, disabled = true })
+      if warm then
+        table.insert(menu, { title = "   Free the memory now", fn = unloadNow })
+      else
         table.insert(menu, { title = "   Wake it now", fn = warmNow })
       end
       -- Writing for, as a submenu. A submenu rather than three top-level rows
@@ -197,20 +201,33 @@ function M.attach(state)
           -- Label only. The explanation of what each one does belongs in the
           -- guide, not in a menu you open to make a two-item choice.
           title = t.label,
+          -- setTone rather than `state.tone = t.id`: it validates the name,
+          -- writes it to ~/.crisp-english/state so it survives a reload, and re-renders.
+          -- The direct assignment did none of those, which is why this setting
+          -- used to reset itself.
           checked = (state.tone == t.id),
-          fn = function()
-            state.tone = t.id
-            render()
-          end,
+          fn = function() state.setTone(t.id) end,
         })
       end
-      table.insert(menu, { title = "Writing for: " .. toneLabel(state.tone),
+      if state.autoTone then
+        table.insert(toneMenu, { title = "-" })
+        table.insert(toneMenu, {
+          title = "Slack and Mail choose for themselves",
+          disabled = true,
+        })
+        table.insert(toneMenu, {
+          title = "   the choice above is the fallback",
+          disabled = true,
+        })
+      end
+      table.insert(menu, { title = "Writing for: " .. toneLabel(state.tone)
+                             .. (state.autoTone and "  (auto)" or ""),
                            menu = toneMenu })
 
       table.insert(menu, {
         title = "Show what changed on screen",
         checked = state.showAlerts,
-        fn = function() state.showAlerts = not state.showAlerts end,
+        fn = function() state.setAlerts(not state.showAlerts) end,
       })
       table.insert(menu, { title = "-" })
       table.insert(menu, {
@@ -227,12 +244,20 @@ function M.attach(state)
       fn = function() hs.autoLaunch(not hs.autoLaunch()) end,
     })
     table.insert(menu, { title = "Start Ollama", fn = startOllama })
-    table.insert(menu, { title = "Reload saaf", fn = function() hs.reload() end })
+    table.insert(menu, { title = "Reload crisp-english", fn = function() hs.reload() end })
     return menu
   end)
 
   -- Let init.lua drive the busy glyph. A poll would lag behind a 1.5s correction
   -- badly enough to be worse than showing nothing.
+  -- setEnabled flips the icon through this, then again when Ollama answers.
+  -- Without it the menu bar would keep showing the old state for the several
+  -- seconds it takes to launch Ollama and load a model.
+  state.onChange = function()
+    render()
+    refreshWarm()
+  end
+
   state.onBusyChange = function(isBusy)
     busy = isBusy
     render()
@@ -242,15 +267,12 @@ function M.attach(state)
   M.bar = bar        -- exposed so the icon can be inspected from `hs -c`
   render()
   refreshWarm()
-  -- 30s is well inside the 8h keep_alive, so the icon is never stale for long,
+  -- 30s is well inside the 1h keep_alive, so the icon is never stale for long,
   -- and one localhost GET twice a minute costs nothing measurable.
+  -- Stored on M, never read. That is the point: a Hammerspoon timer with no
+  -- live reference is garbage collected and quietly stops firing, which is the
+  -- same reasoning init.lua documents for state.sleepWatcher.
   M.timer = hs.timer.doEvery(30, function() refreshWarm() end)
-
-  return {
-    refresh = refreshWarm,
-    startOllama = startOllama,
-    bar = bar,
-  }
 end
 
 return M

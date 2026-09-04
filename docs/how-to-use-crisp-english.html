@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>saaf — How to use it</title>
+<title>crisp-english — How to use it</title>
 <style>
   @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
 
@@ -159,9 +159,9 @@
 <!-- ============================ COVER / WHAT ============================ -->
 <section>
   <div class="cover">
-    <div class="name">saaf</div>
+    <div class="name">crisp-english</div>
     <div class="tag">Fix the English in your work messages with one keystroke.</div>
-    <div class="meaning">saaf (साफ़) — Hindi/Urdu for <em>clean</em>. Which is the whole idea.</div>
+    <div class="meaning">Shorter, clearer, and ready to send. Which is the whole idea.</div>
   </div>
 
   <h2>What this actually does</h2>
@@ -171,7 +171,7 @@
     between two meetings. Normally you would open ChatGPT, paste the message, copy the answer back,
     and switch windows twice.
   </p>
-  <p><strong>saaf removes that round trip.</strong> You select what you wrote and press one key.</p>
+  <p><strong>crisp-english removes that round trip.</strong> You select what you wrote and press one key.</p>
 
   <div class="ba keep">
     <div class="b">
@@ -179,7 +179,7 @@
       <div class="txt">hi sir, i has send the mail yesterday and i am having fever so i will work from home</div>
     </div>
     <div class="a">
-      <div class="lbl">what saaf leaves behind</div>
+      <div class="lbl">what crisp-english leaves behind</div>
       <div class="txt">Hi sir, I sent the email yesterday and I have a fever so I'll work from home.</div>
     </div>
   </div>
@@ -208,7 +208,7 @@
   </div>
 
   <div class="note">
-    <b>saaf is deliberately silent.</b> The only thing that changes on screen is your text. If you
+    <b>crisp-english is deliberately silent.</b> The only thing that changes on screen is your text. If you
     would rather see what it edited and which rule you broke, that can be switched on — see
     <em>The menu bar icon</em> later in this guide — it is a checkbox, not a code change.
   </div>
@@ -253,7 +253,7 @@
           <td>Paragraph breaks, greetings and sign-offs survive intact. Select a four-paragraph
               draft and you get four paragraphs back.</td></tr>
       <tr><td><strong>Survives a restart</strong></td>
-          <td>Starts at login, and keeps the model warm through the working day so you rarely wait.</td></tr>
+          <td>Starts at login, so the first correction of the day is fast. After an hour with no corrections the model releases its 2.9 GB by itself, and the next one waits a second or two longer.</td></tr>
     </tbody>
   </table>
 </section>
@@ -262,14 +262,14 @@
 <section>
   <h2>Why two other programs have to be running</h2>
   <p>
-    This is the part that confuses people first, so it is worth being clear. saaf is not a single
+    This is the part that confuses people first, so it is worth being clear. crisp-english is not a single
     app you launch. It is a small piece of glue that sits between two other programs, and
     <strong>both of them must be running for the keystroke to do anything.</strong>
   </p>
 
   <table class="keep">
     <thead>
-      <tr><th style="width:22%">Program</th><th style="width:30%">Its job here</th><th>Why saaf cannot work without it</th></tr>
+      <tr><th style="width:22%">Program</th><th style="width:30%">Its job here</th><th>Why crisp-english cannot work without it</th></tr>
     </thead>
     <tbody>
       <tr>
@@ -346,7 +346,7 @@
 
   <h3>You do not have to keep track of this</h3>
   <p>
-    That is what the <strong>saaf icon in your menu bar</strong> is for. You never have to remember
+    That is what the <strong>crisp-english icon in your menu bar</strong> is for. You never have to remember
     whether either program is running, or open Terminal to find out — one glance at the top-right of
     your screen answers it:
   </p>
@@ -366,7 +366,7 @@
           <td>Wait a moment. This is how you know a keystroke registered.</td></tr>
       <tr><td style="font-size:15pt;text-align:center">○</td>
           <td><strong>Switched off</strong></td>
-          <td>You turned saaf off. Click the icon → <em>Turn saaf on</em>.</td></tr>
+          <td>You turned crisp-english off. Click the icon → <em>Turn crisp-english on</em>.</td></tr>
       <tr><td style="text-align:center;color:var(--muted)">none</td>
           <td><strong>Hammerspoon is not running</strong></td>
           <td>This is the one thing the icon cannot report from the inside, so its absence is the
@@ -384,7 +384,7 @@
 <section>
   <h2>One-time setup</h2>
   <p>
-    One command, then one click that only you can do. If saaf is already working on your Mac, skip
+    One command, then one click that only you can do. If crisp-english is already working on your Mac, skip
     this page.
   </p>
 
@@ -394,11 +394,11 @@
       <h3>Run the installer</h3>
       <p>
         Open <strong>Terminal</strong> (press <kbd>⌘ Space</kbd>, type <em>Terminal</em>, press
-        Return), then drag the saaf folder into the window after typing <code>cd&nbsp;</code>, and run:
+        Return), then drag the crisp-english folder into the window after typing <code>cd&nbsp;</code>, and run:
       </p>
       <pre class="term"><span class="p">$</span> ./install.sh</pre>
       <p>It installs Ollama and Hammerspoon if they are missing, downloads the language model
-        (about 2.5&nbsp;GB, once), connects saaf to Hammerspoon, sets up the warm-up job, and tests
+        (about 2.5&nbsp;GB, once), connects crisp-english to Hammerspoon, sets up the warm-up job, and tests
         that the engine works. Anything already done is skipped, so it is safe to run again if
         something looks wrong.</p>
       <div class="note">
@@ -419,7 +419,7 @@
       </p>
       <div class="warn">
         <b>This is the one step that cannot be automated.</b> macOS does not allow any program to grant
-        itself Accessibility permission — that is a deliberate security rule, not a limitation of saaf.
+        itself Accessibility permission — that is a deliberate security rule, not a limitation of crisp-english.
         Without it the keystroke is accepted, nothing gets copied, and you are told
         <em>"Select some text first"</em> even though you did select something. The pane is
         <strong>System&nbsp;Settings → Privacy&nbsp;&amp;&nbsp;Security → Accessibility</strong>.
@@ -439,11 +439,11 @@
     </div>
   </div>
 
-  <h3>To remove saaf</h3>
+  <h3>To remove crisp-english</h3>
   <pre class="term"><span class="p">$</span> ./install.sh --uninstall</pre>
   <p style="color:var(--muted);font-size:9.4pt">
-    That unhooks saaf and restores your Hammerspoon config. Ollama, Hammerspoon, the model, and your
-    <code>~/.saaf/</code> correction history are deliberately left alone; the script prints the
+    That unhooks crisp-english and restores your Hammerspoon config. Ollama, Hammerspoon, the model, and your
+    <code>~/.crisp-english/</code> correction history are deliberately left alone; the script prints the
     commands for removing those too if you want them gone.
   </p>
 </section>
@@ -475,7 +475,7 @@
           </div>
           <div class="doc"><span class="sel">hi sir, i has send the mail yesterday and i am having fever so i will work from home</span></div>
         </div>
-        <figcaption><b>Step 1.</b> The blue highlight is the whole story — saaf only ever touches what
+        <figcaption><b>Step 1.</b> The blue highlight is the whole story — crisp-english only ever touches what
           is selected. It cannot see or change anything else on screen.</figcaption>
       </figure>
     </div>
@@ -492,7 +492,7 @@
       </p>
       <div class="note">
         <b>That icon is how you tell a working keystroke from a missed one.</b> If it never changes to
-        ◈, the keystroke did not reach saaf. If it sits on ◈ for a long time, the model was asleep and
+        ◈, the keystroke did not reach crisp-english. If it sits on ◈ for a long time, the model was asleep and
         is waking up — that takes about 30 seconds, once.
       </div>
     </div>
@@ -528,9 +528,9 @@
   </div>
 
   <div class="note">
-    <b>Changed your mind?</b> Press <kbd>⌘ Z</kbd>. saaf pastes like any other paste, so your app's
+    <b>Changed your mind?</b> Press <kbd>⌘ Z</kbd>. crisp-english pastes like any other paste, so your app's
     normal undo puts your original wording straight back. Your clipboard is also left exactly as you
-    found it — saaf borrows it for a moment and hands it back.
+    found it — crisp-english borrows it for a moment and hands it back.
   </div>
 </section>
 
@@ -604,7 +604,7 @@ review it and let me know your feedback on the same</span></pre>
 <section>
   <h2>What happens in those two seconds</h2>
   <p>
-    You do not need any of this to use saaf. It is here because a tool that edits your writing and
+    You do not need any of this to use crisp-english. It is here because a tool that edits your writing and
     touches your clipboard should not be a black box.
   </p>
 
@@ -618,7 +618,7 @@ review it and let me know your feedback on the same</span></pre>
               running.</td></tr>
       <tr><td><code>0 ms</code></td>
           <td>Your current clipboard is saved, then <kbd>⌘C</kbd> is pressed for you.</td>
-          <td>saaf has no way to read a selection directly — no app exposes one. Copying is the only
+          <td>crisp-english has no way to read a selection directly — no app exposes one. Copying is the only
               route, which is why Accessibility permission is required.</td></tr>
       <tr><td><code>250 ms</code></td>
           <td>Your selected text is read, and <strong>your original clipboard is put straight
@@ -646,7 +646,7 @@ review it and let me know your feedback on the same</span></pre>
               ordinary paste, so one undo reverses it.</td></tr>
       <tr><td><code>~1.65 s</code></td>
           <td>Your clipboard is restored again, the icon returns to <strong>◆</strong>, and the
-              correction is appended to <code>~/.saaf/mistakes.log</code>.</td>
+              correction is appended to <code>~/.crisp-english/mistakes.log</code>.</td>
           <td>That log is what <em>My frequent mistakes…</em> counts. It never leaves your Mac and you
               can delete it any time.</td></tr>
     </tbody>
@@ -655,13 +655,13 @@ review it and let me know your feedback on the same</span></pre>
   <h3>Why two layers instead of just asking the model</h3>
   <p>
     The model handles grammar, which needs judgement. A fixed rule list handles office filler and a
-    short set of recurring mistakes, which do not. Splitting it that way is what lets saaf use a small
+    short set of recurring mistakes, which do not. Splitting it that way is what lets crisp-english use a small
     model that answers in about a second instead of a large one that answers in five — the small model
     only has to get the grammar right, because everything else is already guaranteed.
   </p>
   <p>
     It is also why one specific thing is <em>never</em> auto-fixed. <em>"Do the needful"</em> has no
-    safe replacement — it could mean review, approve, deploy, or pay — so instead of guessing, saaf
+    safe replacement — it could mean review, approve, deploy, or pay — so instead of guessing, crisp-english
     flags it and leaves the sentence to you.
   </p>
 </section>
@@ -670,15 +670,16 @@ review it and let me know your feedback on the same</span></pre>
 <section>
   <h2>The menu bar icon</h2>
   <p>
-    Everything you can change about saaf is one click away. Nothing here requires editing a file or
+    Everything you can change about crisp-english is one click away. Nothing here requires editing a file or
     restarting anything.
   </p>
 
-  <pre class="term"><span class="g">◆ saaf</span>
+  <pre class="term"><span class="g">◆ crisp-english</span>
   <span class="c">─────────────────────────────</span>
-  Turn saaf off
+  Turn crisp-english off
   <span class="c">─────────────────────────────</span>
-  Model: ready
+  Model: ready (frees 2.9 GB in 47 min)
+     Free the memory now
   Writing for: Client or senior   <span class="c">▸</span>
   <span class="y">✓</span> Show what changed on screen
   <span class="c">─────────────────────────────</span>
@@ -687,17 +688,22 @@ review it and let me know your feedback on the same</span></pre>
   <span class="c">─────────────────────────────</span>
   <span class="y">✓</span> Start at login
   Start Ollama
-  Reload saaf</pre>
+  Reload crisp-english</pre>
 
   <table>
     <tbody>
-      <tr><td style="width:36%"><strong>Turn saaf off</strong></td>
-          <td>Stops corrections without quitting anything. <kbd>⌥ P</kbd> does nothing while off — it
-              will not start typing a <code>π</code> at you either. Useful when you are writing code
-              or in a language saaf should not touch.</td></tr>
+      <tr><td style="width:36%"><strong>Turn crisp-english off</strong></td>
+          <td>Stops corrections. <kbd>⌥ P</kbd> does nothing while off — it will not start typing a
+              <code>π</code> at you either. Useful when you are writing code or in a language crisp-english
+              should not touch. It also hands back the model's memory, and quits Ollama if crisp-english was
+              the one that started it. See <em>What crisp-english does with your memory</em> below.</td></tr>
       <tr><td><strong>Model: ready / asleep</strong></td>
-          <td>Whether the next correction is fast or slow. When asleep, a <em>Wake it now</em> entry
-              appears underneath.</td></tr>
+          <td>Whether the next correction is fast or slow, and — when it is ready — how much memory
+              the model is holding and when it will hand it back. When asleep, a <em>Wake it now</em>
+              entry appears underneath instead.</td></tr>
+      <tr><td><strong>Free the memory now</strong></td>
+          <td>Hands back the 2.9&nbsp;GB immediately, without turning crisp-english off. The hotkey keeps
+              working; the next correction just reloads the model. Use it when the Mac feels tight.</td></tr>
       <tr><td><strong>Writing for</strong></td>
           <td>Who the message is going to: <strong>Client or senior</strong> or
               <strong>Slack / WhatsApp</strong>. The active choice is shown on this row, so you can
@@ -709,12 +715,81 @@ review it and let me know your feedback on the same</span></pre>
       <tr><td><strong>My frequent mistakes…</strong></td>
           <td>Opens the same tally as <code>./corrector.py stats</code> in a text window.</td></tr>
       <tr><td><strong>Start at login</strong></td>
-          <td>Already on. This is what makes saaf survive a restart — without it, a reboot leaves you
+          <td>Already on. This is what makes crisp-english survive a restart — without it, a reboot leaves you
               with no icon and a dead hotkey.</td></tr>
       <tr><td><strong>Start Ollama</strong></td>
-          <td>Launches Ollama and wakes the model. This is the "I don't want to think about it" button.</td></tr>
+          <td>Launches Ollama and wakes the model. Turning crisp-english on already does this, so you only
+              need it if Ollama has died underneath a crisp-english that was already switched on.</td></tr>
     </tbody>
   </table>
+
+  <h3>When you cannot find the icon</h3>
+  <p>
+    macOS decides where menu bar icons sit, and on a notched Mac it will happily park this one under
+    the camera housing, where it is present, working, and completely invisible. Nothing inside crisp-english
+    can control that. So crisp-english is built so that <strong>you never need the icon</strong>.
+  </p>
+  <table>
+    <thead><tr><th style="width:34%">Instead of the icon</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>⇧ ⌥ P</kbd></td>
+          <td>Turns crisp-english on or off from any app. Works <em>while crisp-english is off</em>, which
+              <kbd>⌥ P</kbd> deliberately does not. Shows a brief <em>crisp-english on</em> / <em>crisp-english
+              off</em> on screen — when the icon cannot be seen, that message is your only
+              confirmation.</td></tr>
+      <tr><td><code>crisp-englishctl on</code></td>
+          <td>The same switch, from any Terminal window. <code>crisp-englishctl</code> is on your
+              <code>PATH</code>, so it works from any folder.</td></tr>
+      <tr><td><code>crisp-englishctl status</code></td>
+          <td>Is it loaded, is the model warm, how much memory is held — and where the icon is,
+              including whether it is inside the notch.</td></tr>
+      <tr><td><code>crisp-englishctl icon</code></td>
+          <td>Takes the icon out of the menu bar and puts it back, in the hope macOS gives it a
+              different slot. Sometimes works.</td></tr>
+    </tbody>
+  </table>
+  <div class="note">
+    <b>The permanent fix.</b> Hold <kbd>⌘</kbd> and drag the icon out of the middle of the menu bar,
+    somewhere clear of the notch. macOS remembers that position, so it stays where you put it.
+  </div>
+
+  <h3>What crisp-english does with your memory</h3>
+  <p>
+    The model is <strong>2.9&nbsp;GB</strong>. On a 16&nbsp;GB Mac that is nearly a fifth of the
+    machine, and holding it around the clock is what makes everything else start swapping. So crisp-english
+    holds it only while you are actually writing.
+  </p>
+  <table>
+    <thead><tr><th style="width:38%">When</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td><strong>You turn crisp-english on</strong></td>
+          <td>Ollama is started if it is not already running, and the model is loaded.</td></tr>
+      <tr><td><strong>You turn crisp-english off</strong></td>
+          <td>The model is released. Ollama is quit <em>only if crisp-english started it</em>.</td></tr>
+      <tr><td><strong>Your Mac goes to sleep</strong></td>
+          <td>The model is released. Ollama is left running.</td></tr>
+      <tr><td><strong>An hour passes with no corrections</strong></td>
+          <td>Ollama releases the model on its own.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    That rule about quitting matters. If Ollama was already running when you turned crisp-english on — because
+    you use it for something else — <strong>crisp-english will never quit it.</strong> It only ever puts back
+    what it took.
+  </p>
+  <p>
+    <b>Turning crisp-english on and off never depends on Ollama.</b> If Ollama is missing, broken, or refuses
+    to start, crisp-english still switches on: the hotkey stays live and the icon tells you the engine is
+    down. A switch that quietly refused to move would be worse than one that moves and then explains
+    itself.
+  </p>
+  <div class="note">
+    <b>Does this make crisp-english slow?</b> Barely. Reloading a released model takes about
+    <strong>1.3 seconds</strong>, because macOS keeps the weights in its file cache — measured on an
+    M4. The 15–50 second cold load only happens when that cache is gone, which in practice means
+    after a reboot. Handing back 2.9&nbsp;GB in exchange for a second is why this is simply how crisp-english
+    behaves rather than a setting you have to find.
+  </div>
 
   <h3>What "show what changed" looks like</h3>
   <p>
@@ -732,7 +807,7 @@ review it and let me know your feedback on the same</span></pre>
 
   <p class="anno"><b>The green line — the edits.</b> Literally what was swapped, old on the left, new on the right. Skim it to confirm your meaning survived.</p>
   <p class="anno"><b>The plain lines — the grammar rules you broke.</b> Named, so they are learnable rather than merely fixed. These get counted; see the next page.</p>
-  <p class="anno"><b>The amber line — a warning.</b> Something saaf is telling you it could not safely decide for you. This is the important one.</p>
+  <p class="anno"><b>The amber line — a warning.</b> Something crisp-english is telling you it could not safely decide for you. This is the important one.</p>
   <p class="anno"><b>The grey line — the reminder</b> that ⌘Z undoes the whole thing.</p>
 
   <h3>Why it warns instead of trusting the fix</h3>
@@ -742,10 +817,10 @@ review it and let me know your feedback on the same</span></pre>
     no more specific than what you wrote, and could still send a colleague off in the wrong direction.
   </p>
   <p>
-    So the warning does not depend on the model behaving well. <strong>saaf checks the phrase against
+    So the warning does not depend on the model behaving well. <strong>crisp-english checks the phrase against
     what <em>you</em> typed, not against what came back</strong> — which means it fires either way,
     whether the model left the phrase alone or quietly paraphrased it. The fix it wants from you is to
-    name the action yourself. <strong>This is the one place saaf teaches instead of correcting, and it
+    name the action yourself. <strong>This is the one place crisp-english teaches instead of correcting, and it
     is deliberate.</strong>
   </p>
   <div class="warn">
@@ -763,7 +838,7 @@ review it and let me know your feedback on the same</span></pre>
     spelled out in full.
   </p>
 
-  <h3>Things saaf will never do</h3>
+  <h3>Things crisp-english will never do</h3>
   <table>
     <tbody>
       <tr><td style="width:47%"><strong>Never adds a greeting or sign-off</strong></td>
@@ -815,7 +890,7 @@ review it and let me know your feedback on the same</span></pre>
       <tr>
         <td><strong>Guess what you meant</strong></td>
         <td><em>"Do the needful"</em> could mean review, approve, deploy or pay. Rather than pick one
-            and send a colleague the wrong instruction, saaf leaves the phrase alone and warns you to
+            and send a colleague the wrong instruction, crisp-english leaves the phrase alone and warns you to
             name the action yourself.</td>
       </tr>
       <tr>
@@ -838,7 +913,7 @@ review it and let me know your feedback on the same</span></pre>
   <p>
     The keystroke gives you one corrected sentence, which is what you want almost every time.
     Occasionally you want choices, or you want to see which mistakes you keep making. Those live in
-    Terminal. Nothing here is required to use saaf day to day.
+    Terminal. Nothing here is required to use crisp-english day to day.
   </p>
 
   <h3>Three phrasings instead of one</h3>
@@ -892,7 +967,7 @@ review it and let me know your feedback on the same</span></pre>
 
   <h3>Which mistakes you actually keep making</h3>
   <p>
-    Every correction is logged to <code>~/.saaf/mistakes.log</code> on your machine. This turns that
+    Every correction is logged to <code>~/.crisp-english/mistakes.log</code> on your machine. This turns that
     log into a tally, so the point stops being "patch this message" and starts being "stop making
     this mistake":
   </p>
@@ -911,12 +986,12 @@ review it and let me know your feedback on the same</span></pre>
   <p>
     Read that as a study list. Nineteen of those thirty-nine messages used a present perfect with a
     past time word — <em>"I have sent it yesterday"</em> instead of <em>"I sent it yesterday"</em>.
-    That is a single rule, and learning it would remove almost half the corrections saaf has ever had
+    That is a single rule, and learning it would remove almost half the corrections crisp-english has ever had
     to make for you.
   </p>
   <div class="note">
-    <b>The log is yours alone.</b> It is a plain text file at <code>~/.saaf/mistakes.log</code>, one
-    line per correction, on your machine. Delete it whenever you like — saaf simply starts counting
+    <b>The log is yours alone.</b> It is a plain text file at <code>~/.crisp-english/mistakes.log</code>, one
+    line per correction, on your machine. Delete it whenever you like — crisp-english simply starts counting
     again.
   </div>
 </section>
@@ -925,7 +1000,7 @@ review it and let me know your feedback on the same</span></pre>
 <section>
   <h2>When something looks wrong</h2>
   <p>
-    Because saaf runs silent, the errors below arrive as ordinary macOS notifications in the top-right
+    Because crisp-english runs silent, the errors below arrive as ordinary macOS notifications in the top-right
     corner — not as centre-screen boxes. Anything in a <code>code style</code> below is the exact
     wording you will see.
   </p>
@@ -933,37 +1008,40 @@ review it and let me know your feedback on the same</span></pre>
   <div class="note">
     <b>Start with the icon.</b> Almost every problem is identified by what the menu bar shows before
     you check anything else. <strong>No icon</strong> → Hammerspoon is not running.
-    <strong>○</strong> → you turned saaf off. <strong>◇</strong> → it will work but slowly.
-    <strong>◆ that never changes to ◈ when you press ⌥P</strong> → the keystroke is not reaching saaf.
+    <strong>○</strong> → you turned crisp-english off. <strong>◇</strong> → it will work but slowly.
+    <strong>◆ that never changes to ◈ when you press ⌥P</strong> → the keystroke is not reaching crisp-english.
   </div>
 
   <table>
     <thead><tr><th style="width:36%">What you see</th><th>What it means and what to do</th></tr></thead>
     <tbody>
       <tr>
-        <td><strong>No saaf icon in the menu bar</strong></td>
-        <td>Hammerspoon is not running — nothing else can be wrong yet, because the icon <em>is</em>
-            Hammerspoon. Launch it from Applications. It is set to start at login, so if this keeps
-            happening check that <em>Start at login</em> is still ticked.</td>
+        <td><strong>No crisp-english icon in the menu bar</strong></td>
+        <td>Either Hammerspoon is not running, or macOS has parked the icon behind the notch where it
+            cannot be seen. Check which: run <code>crisp-englishctl status</code> in Terminal — it reports
+            whether the config is loaded and where the icon actually is. If Hammerspoon is not
+            running, launch it from Applications. If the icon is hidden, see
+            <em>When you cannot find the icon</em>.</td>
       </tr>
       <tr>
         <td><strong>Icon shows <code>○</code></strong></td>
-        <td>saaf is switched off. Click the icon → <em>Turn saaf on</em>.</td>
+        <td>crisp-english is switched off. Click the icon → <em>Turn crisp-english on</em>, or just press
+            <kbd>⇧ ⌥ P</kbd> from anywhere.</td>
       </tr>
       <tr>
         <td><strong>Text unchanged, and a <code>π</code> appeared</strong></td>
         <td>The <code>π</code> means Hammerspoon never intercepted the key, so macOS typed the
             character instead. If the icon is present, the config loaded but the hotkey did not bind —
-            click the icon → <em>Reload saaf</em>.</td>
+            click the icon → <em>Reload crisp-english</em>.</td>
       </tr>
       <tr>
         <td><strong>Icon flicked to <code>◈</code> and back, but the text did not change</strong></td>
-        <td>It ran and found nothing to fix — your sentence was already correct. saaf leaves correct
+        <td>It ran and found nothing to fix — your sentence was already correct. crisp-english leaves correct
             text alone rather than rewriting it for the sake of it.</td>
       </tr>
       <tr>
         <td><code>Ollama is not running.</code></td>
-        <td>The brain is not awake. Click the saaf icon → <em>Start Ollama</em>. It launches the app and
+        <td>The brain is not awake. Click the crisp-english icon → <em>Start Ollama</em>. It launches the app and
             wakes the model for you.</td>
       </tr>
       <tr>
@@ -1007,7 +1085,7 @@ review it and let me know your feedback on the same</span></pre>
 
   <h3>The one thing that fixes most things</h3>
   <p>
-    Click the saaf icon and choose <strong>Reload saaf</strong>. That re-reads every saaf file and
+    Click the crisp-english icon and choose <strong>Reload crisp-english</strong>. That re-reads every crisp-english file and
     rebuilds the hotkey — worth trying before anything else, and the fix after you edit any of them.
     From Terminal the equivalent is <code>hs -c 'hs.reload()'</code>.
   </p>
@@ -1022,7 +1100,7 @@ review it and let me know your feedback on the same</span></pre>
   </div>
 
   <div class="foot">
-    saaf — local English correction for work messages · runs on qwen3:4b via Ollama, driven by
+    crisp-english — local English correction for work messages · runs on qwen3:4b via Ollama, driven by
     Hammerspoon · <strong>nothing you write leaves this Mac</strong>
   </div>
 </section>

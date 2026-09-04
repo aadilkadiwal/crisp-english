@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""saaf - correct English in work messages, locally.
+"""crisp-english - correct English in work messages, locally.
 
-    saaf "i has send the mail yesterday"     three suggestions, human readable
-    saaf --fast "..."                        one suggestion, what the hotkey uses
-    saaf --formal "..."                      for a client or someone senior
-    saaf --brief "..."                       for Slack or WhatsApp, fewest words
-    saaf --json "..."                        machine readable, for the hotkey
-    saaf stats                               your most frequent mistakes
+    crisp-english "i has send the mail yesterday"     three suggestions, human readable
+    crisp-english --fast "..."                        one suggestion, what the hotkey uses
+    crisp-english --formal "..."                      for a client or someone senior
+    crisp-english --brief "..."                       for Slack or WhatsApp, fewest words
+    crisp-english --json "..."                        machine readable, for the hotkey
+    crisp-english stats                               your most frequent mistakes
+    crisp-english last                                what the last correction changed
+    crisp-english again [--brief|--formal]            redo the last one for another audience
 
 Runs entirely on this Mac via Ollama. Nothing is sent anywhere.
 """
@@ -14,7 +16,7 @@ Runs entirely on this Mac via Ollama. Nothing is sent anywhere.
 import json
 import os
 import re
-import subprocess
+import socket
 import sys
 import time
 import urllib.error
@@ -26,9 +28,72 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import blocklist  # noqa: E402
 
-MODEL = os.environ.get("SAAF_MODEL", "qwen3:4b")
+PROJECT = Path(__file__).resolve().parent
+STATE_DIR = Path.home() / ".crisp-english"
+LOG = STATE_DIR / "mistakes.log"
+
+
+# --- configuration -----------------------------------------------------------
+# See crisp-english.conf for the format and for why this file exists at all. In short:
+# four languages, one set of numbers, and three comments that used to say "THIS
+# NUMBER EXISTS IN FOUR PLACES".
+
+def read_config_file(path):
+    """Parse KEY=value lines. Returns {} for a missing or unreadable file.
+
+    Deliberately not `exec` or a real parser: the same file is parsed by a Lua
+    function and a shell loop, and this is the syntax all three can agree on
+    without any of them being clever.
+    """
+    settings = {}
+    try:
+        raw = Path(path).read_text()
+    except OSError:
+        return settings
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        # Strip a trailing comment, then optional quotes. " #" rather than "#",
+        # so a value containing a hash is still possible.
+        value = re.split(r"\s+#", value, maxsplit=1)[0].strip().strip("\"'")
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            settings[key] = value
+    return settings
+
+
+# Project defaults, then the user's own file on top.
+CONFIG = dict(read_config_file(PROJECT / "crisp-english.conf"))
+CONFIG.update(read_config_file(STATE_DIR / "crisp-english.conf"))
+
+
+def setting(key, default, files=None):
+    """Environment beats the config files, which beat the built-in default.
+
+    An explicit None check rather than `or`, so CRISP_ENGLISH_LOG_TEXT=0 means 0 and not
+    "fall through to the default".
+    """
+    files = CONFIG if files is None else files
+    for source in (os.environ, files):
+        value = source.get(key)
+        if value is not None and value != "":
+            return value
+    return default
+
+
+def _flag(key, default):
+    return str(setting(key, default)).strip().lower() in ("1", "true", "yes", "on")
+
+
+MODEL = setting("CRISP_ENGLISH_MODEL", "qwen3:4b")
+KEEP_ALIVE = setting("CRISP_ENGLISH_KEEP_ALIVE", "1h")
+NUM_CTX = int(setting("CRISP_ENGLISH_NUM_CTX", "2048"))
+LOG_TEXT = _flag("CRISP_ENGLISH_LOG_TEXT", "1")
+LOG_MAX = int(setting("CRISP_ENGLISH_LOG_MAX", "2000"))
+
 OLLAMA = "http://localhost:11434"
-LOG = Path.home() / ".saaf" / "mistakes.log"
 
 # Two timeouts, because there are two very different waits. A resident model
 # answers in ~1.6s; loading one off disk is 15-50s. A single 25s limit was right
@@ -36,6 +101,11 @@ LOG = Path.home() / ".saaf" / "mistakes.log"
 # succeeded, which read as a broken tool rather than a slow one.
 TIMEOUT_WARM = 25
 TIMEOUT_COLD = 90
+
+# Output token budgets. Fast mode asks for one variant instead of three, which is
+# genuinely faster rather than just skipping a popup.
+NUM_PREDICT_FAST = 200
+NUM_PREDICT_FULL = 500
 
 SYSTEM = """You correct English for an Indian senior software engineer writing work messages (email, Slack, WhatsApp).
 
@@ -99,9 +169,6 @@ FAST_SCHEMA = {
     "required": ["natural", "notes"],
 }
 
-FAST_EXTRA = ("\n\nIMPORTANT: return ONLY the keys natural and notes. "
-              "Do not return fix or short.")
-
 # A lean prompt for instant mode. The full SYSTEM prompt is roughly 600 tokens, and
 # every one of them is re-processed on each request; the variant descriptions and
 # examples are dead weight when only one variant is wanted. Grammar rules that
@@ -153,8 +220,35 @@ TONES = {
 TONES_VIA_VARIANTS = {"brief": "short"}
 
 
-class SaafError(Exception):
+class CrispError(Exception):
     """Anything the user needs to be told about, in words they can act on."""
+
+
+# --- how much text fits ------------------------------------------------------
+# The cap used to be a flat 4000 characters, chosen as a round number rather than
+# derived from anything. Against num_ctx=2048 the arithmetic does not work: the
+# full prompt is ~600-800 tokens, 4000 characters is ~1100, and num_predict is
+# 500, which is about 2400 tokens of demand on a 2048-token window. Ollama drops
+# tokens from the START of the context when it overflows, and the start is the
+# system prompt - so the failure mode is not an error, it is a correction made
+# with half its instructions missing.
+#
+# 3 characters per token is deliberately pessimistic (English averages closer to
+# 4), because every error in this estimate has to fall on the safe side.
+CHARS_PER_TOKEN = 3
+RESERVE_TOKENS = 64          # JSON scaffolding, the tone fragment, rounding
+
+
+def estimate_tokens(text):
+    return len(text) // CHARS_PER_TOKEN + 1
+
+
+def max_chars(fast):
+    """Characters of input that fit in num_ctx, for the prompt actually used."""
+    system = FAST_SYSTEM if fast else SYSTEM
+    predict = NUM_PREDICT_FAST if fast else NUM_PREDICT_FULL
+    room = NUM_CTX - estimate_tokens(system) - predict - RESERVE_TOKENS
+    return max(room, 0) * CHARS_PER_TOKEN
 
 
 def _ollama_state():
@@ -183,15 +277,12 @@ def _request(text, extra="", fast=False, timeout=TIMEOUT_WARM, tone="default"):
         "prompt": text,
         "stream": False,
         "think": False,
-        "keep_alive": "8h",
+        "keep_alive": KEEP_ALIVE,
         "format": FAST_SCHEMA if fast else SCHEMA,
         "options": {
             "temperature": 0.2,
-            "num_predict": 200 if fast else 500,
-            # Without this Ollama honours the model's advertised maximum context.
-            # qwen3:4b advertises 262144, which reserves 42GB, does not fit in 16GB,
-            # and silently spills inference onto the CPU: slow and battery-hungry.
-            "num_ctx": 2048,
+            "num_predict": NUM_PREDICT_FAST if fast else NUM_PREDICT_FULL,
+            "num_ctx": NUM_CTX,
         },
     }
     req = urllib.request.Request(
@@ -201,18 +292,51 @@ def _request(text, extra="", fast=False, timeout=TIMEOUT_WARM, tone="default"):
     )
     try:
         raw = json.load(urllib.request.urlopen(req, timeout=timeout))["response"]
-    except urllib.error.URLError as e:
-        raise SaafError(f"Cannot reach Ollama. Is it running? ({e.reason})")
-    except TimeoutError:
-        if timeout == TIMEOUT_COLD:
-            raise SaafError(
-                f"Model did not finish loading in {timeout}s. Run "
+    # socket.timeout FIRST, and by that name.
+    #
+    # /usr/bin/python3 - which init.lua hardcodes, because it is the only python
+    # guaranteed to exist on a Mac - is 3.9, and there socket.timeout is neither
+    # TimeoutError (that alias arrived in 3.10) nor URLError. Both handlers below
+    # therefore missed it, and every read timeout escaped as an unhandled
+    # exception: the user got a Python traceback in a "crisp-english failed" notification
+    # at exactly the moment the tool needed to explain itself. Verified against
+    # a stalling server that never answered.
+    except socket.timeout:
+        if timeout >= TIMEOUT_COLD:
+            raise CrispError(
+                f"Model did not finish loading in {timeout:g}s. Run "
                 f"`ollama run {MODEL}` once, then try again.")
-        raise SaafError(f"Model took longer than {timeout}s. Try shorter text.")
+        raise CrispError(
+            f"Model took longer than {timeout:g}s. Try shorter text.")
+    except urllib.error.URLError as e:
+        # A connect timeout arrives wrapped in URLError instead of raw.
+        if isinstance(e.reason, socket.timeout):
+            raise CrispError("Ollama did not answer in time. Is it still running?")
+        raise CrispError(f"Cannot reach Ollama. Is it running? ({e.reason})")
+    except OSError as e:
+        raise CrispError(f"Cannot reach Ollama. Is it running? ({e})")
     try:
         return json.loads(raw)
-    except json.JSONDecodeError:
-        raise SaafError("Model returned unreadable output. Try again.")
+    except (json.JSONDecodeError, TypeError):
+        raise CrispError("Model returned unreadable output. Try again.")
+
+
+def _polish(original, text):
+    """Model output -> shippable text. The deterministic layer, in order.
+
+    Order matters: undo model typos first, so clean() then fixes the case of
+    anything restored, and the currency check sees the final wording.
+    """
+    return blocklist.strip_invented_currency(
+        original, blocklist.clean(
+            blocklist.restore_mangled_words(original, text or "")))
+
+
+def _retry_extra(bad):
+    named = ", ".join(f'"{b}"' for b in bad)
+    return (f"\n\nYour previous attempt used {named}, which is forbidden. "
+            "Rewrite so those words are not needed at all. Do not swap them for "
+            "synonyms, restructure the sentence.")
 
 
 def correct(text, fast=False, tone="default"):
@@ -245,35 +369,57 @@ def correct(text, fast=False, tone="default"):
         fast = True                # every other tone is a single answer
     text = text.strip()
     if not text:
-        raise SaafError("Nothing selected.")
-    if len(text) > 4000:
-        raise SaafError(f"Text is {len(text)} characters. Select less than 4000.")
+        raise CrispError("Nothing selected.")
+    limit = max_chars(fast)
+    if len(text) > limit:
+        raise CrispError(
+            f"Text is {len(text)} characters and the model's context fits "
+            f"{limit}. Select less and try again.")
     reachable, warm = _ollama_state()
     if not reachable:
-        raise SaafError("Ollama is not running. Start it with: ollama serve")
+        raise CrispError("Ollama is not running. Start it with: ollama serve")
     timeout = TIMEOUT_WARM if warm else TIMEOUT_COLD
 
     t0 = time.time()
 
     if fast:
         r = _request(text, fast=True, timeout=timeout, tone=tone)
-        # Order matters: undo model typos first, so clean() then fixes the case
-        # of anything restored, and the currency check sees the final wording.
-        best = blocklist.strip_invented_currency(text, blocklist.clean(
-            blocklist.restore_mangled_words(text, r.get("natural", "")))) or text
+        best = _polish(text, r.get("natural", "")) or text
+
+        # Group 5 enforcement, in the mode that actually ships.
+        #
+        # This block used to exist only below, in the three-variant path - which
+        # the hotkey cannot reach. So the single mechanism for removing AI
+        # vocabulary ("leverage", "additionally", "delve") was absent from every
+        # correction anyone actually makes. One retry, only when a violation is
+        # found, so the common case costs nothing.
+        bad = blocklist.violations(best)
+        if bad:
+            try:
+                retry = _request(text, fast=True, timeout=TIMEOUT_WARM, tone=tone,
+                                 extra=_retry_extra(bad))
+                candidate = _polish(text, retry.get("natural", ""))
+                if candidate and len(blocklist.violations(candidate)) < len(bad):
+                    best, r = candidate, retry
+            except CrispError:
+                pass                  # the first attempt is still usable
+
         out = {
             "fix": best, "natural": best, "short": best,
             "notes": _plausible_notes(r.get("notes", []), text),
             "hints": list(dict.fromkeys(
                 blocklist.hints(best) + blocklist.hints(text))),
-            "changes": {"natural": _changes(text, best, limit=4)},
+            # "best" is what the alert describes; "natural" is kept because
+            # an older init.lua reads that key. Same list in fast mode.
+            "changes": {"natural": _changes(text, best, limit=4),
+                        "best": _changes(text, best, limit=4)},
             "best": best,
             "seconds": round(time.time() - t0, 2),
             "tone": tone,
             "fast": True,
         }
         # Instant mode is the common path, so it must feed the mistake log too -
-        # otherwise `saaf stats` would only ever see the corrections you paused
+        # otherwise `crisp-english stats` would only ever see the corrections you paused
         # to choose between.
         _log(text, out)
         return out
@@ -281,26 +427,21 @@ def correct(text, fast=False, tone="default"):
     result = _request(text, timeout=timeout, tone=tone)
 
     for f in FIELDS:
-        result[f] = blocklist.strip_invented_currency(text, blocklist.clean(
-            blocklist.restore_mangled_words(text, result.get(f, ""))))
+        result[f] = _polish(text, result.get(f, ""))
 
     # One retry for words that have a real meaning but no safe swap. Measured to
     # work: "leverage the API to facilitate onboarding" -> "use the API to speed up
     # onboarding". Phrases with no recoverable meaning are handled as hints instead.
     bad = sorted({v for f in FIELDS for v in blocklist.violations(result[f])})
     if bad:
-        named = ", ".join(f'"{b}"' for b in bad)
         try:
-            retry = _request(text, timeout=TIMEOUT_WARM, tone=tone, extra=(
-                f"\n\nYour previous attempt used {named}, which is forbidden. "
-                "Rewrite so those words are not needed at all. Do not swap them for "
-                "synonyms, restructure the sentence."))
+            retry = _request(text, timeout=TIMEOUT_WARM, tone=tone,
+                             extra=_retry_extra(bad))
             for f in FIELDS:
-                retry[f] = blocklist.strip_invented_currency(text, blocklist.clean(
-                    blocklist.restore_mangled_words(text, retry.get(f, ""))))
+                retry[f] = _polish(text, retry.get(f, ""))
             if len(blocklist.violations(retry["fix"])) < len(blocklist.violations(result["fix"])):
                 result = retry
-        except SaafError:
+        except CrispError:
             pass                      # the first attempt is still usable
 
     # Never return an empty suggestion: fall back to the input rather than
@@ -326,6 +467,17 @@ def correct(text, fast=False, tone="default"):
     # `natural` is the right answer for every tone except the ones routed here
     # specifically to collect a different field.
     result["best"] = result[TONES_VIA_VARIANTS.get(tone, "natural")]
+    # What the alert should describe: the text that will actually be pasted,
+    # diffed against what the user wrote.
+    #
+    # The three entries above are for the CLI, which prints all three variants
+    # and wants to show what each ADDS to `fix`. The hotkey pastes exactly one of
+    # them and never shows the others, so a diff against a sibling variant is the
+    # wrong comparison - and for the brief tone it is empty, because `natural` and
+    # `fix` are the same string while `best` is `short`. That meant a Slack
+    # correction with alerts on explained nothing at all, in the one register the
+    # app now selects on its own.
+    result["changes"]["best"] = _changes(text, result["best"], limit=4)
     result["seconds"] = round(time.time() - t0, 2)
     _log(text, result)
     return result
@@ -369,7 +521,7 @@ def _plausible_notes(notes, original):
     """
     low = original.lower()
     kept = []
-    for n in notes:
+    for n in notes or []:
         if not isinstance(n, str) or not n.strip():
             continue
         quoted = re.findall(r"['\"]([^'\"]{2,40})['\"]", n)
@@ -381,19 +533,78 @@ def _plausible_notes(notes, original):
     return kept[:2]
 
 
+# --- the mistake log ---------------------------------------------------------
+
 def _log(original, result):
-    """Append the grammar notes so recurring mistakes become visible over time."""
+    """Append the grammar notes so recurring mistakes become visible over time.
+
+    Two things this deliberately does that it did not before:
+
+      - it rotates. The log had no ceiling, so it grew for as long as crisp-english was
+        installed, and stats() reads all of it on every call.
+      - it can hold notes only. CRISP_ENGLISH_LOG_TEXT=0 keeps the rule names and drops
+        the message text, for anyone who would rather crisp-english's promise that
+        nothing leaves the Mac not be paired with a permanent transcript of
+        everything they wrote. `last` and `again` need the text, and say so.
+    """
     try:
         LOG.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "at": time.strftime("%Y-%m-%d %H:%M"),
+            "notes": result.get("notes", []),
+            "tone": result.get("tone", "default"),
+        }
+        if LOG_TEXT:
+            entry["original"] = original[:1000]
+            entry["fix"] = result.get("fix", "")[:1000]
         with LOG.open("a") as fh:
-            fh.write(json.dumps({
-                "at": time.strftime("%Y-%m-%d %H:%M"),
-                "original": original[:300],
-                "fix": result["fix"][:300],
-                "notes": result["notes"],
-            }) + "\n")
+            fh.write(json.dumps(entry) + "\n")
+        _rotate()
     except OSError:
         pass                          # logging must never break a correction
+
+
+def _rotate():
+    """Keep the newest LOG_MAX entries and drop the rest."""
+    try:
+        lines = LOG.read_text().splitlines()
+    except OSError:
+        return
+    if len(lines) <= LOG_MAX:
+        return
+    LOG.write_text("\n".join(lines[-LOG_MAX:]) + "\n")
+
+
+def _entries():
+    """Every readable log entry, oldest first."""
+    try:
+        raw = LOG.read_text()
+    except OSError:
+        return []
+    out = []
+    for line in raw.splitlines():
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue                  # a torn line from a killed write
+    return out
+
+
+def last_correction():
+    """The most recent correction, or None if there is nothing usable.
+
+    Returns None when CRISP_ENGLISH_LOG_TEXT=0, because then the last correction's text
+    was never kept. Not "the last one that happens to have text": reaching back
+    past the corrections it did not record and presenting an older one as the
+    last is a wrong answer, and it puts message text in front of someone who
+    just asked for message text not to be kept. Callers report the difference.
+    """
+    if not LOG_TEXT:
+        return None
+    for entry in reversed(_entries()):
+        if entry.get("original"):
+            return entry
+    return None
 
 
 def _rule_key(note):
@@ -417,33 +628,91 @@ def _rule_key(note):
     return re.sub(r"[:\-–].*$", "", note).strip()[:60] or "other"
 
 
-def stats():
-    if not LOG.exists():
+def stats_report(entries, now=None, window_days=30):
+    """Split each rule's count into recent and older. Pure; tested directly.
+
+    A single all-time total cannot answer the question the log exists for. A rule
+    you broke thirty times in June and never since still tops the chart, so the
+    feature built to show what you get wrong shows what you USED to get wrong.
+    Two columns and a "fixed" marker turn the same data into a trend.
+    """
+    now = time.time() if now is None else now
+    cutoff = now - window_days * 86400
+    recent, older = Counter(), Counter()
+    for entry in entries:
+        try:
+            when = time.mktime(time.strptime(entry.get("at", "")[:10], "%Y-%m-%d"))
+        except (ValueError, TypeError):
+            when = 0                  # undateable entries are history
+        bucket = recent if when >= cutoff else older
+        for note in entry.get("notes", []):
+            bucket[_rule_key(note)] += 1
+
+    rows = []
+    for rule in set(recent) | set(older):
+        rows.append({
+            "rule": rule,
+            "recent": recent[rule],
+            "older": older[rule],
+            "improved": recent[rule] == 0 and older[rule] > 0,
+        })
+    # What is still happening first; that is what there is anything to do about.
+    rows.sort(key=lambda r: (-r["recent"], -r["older"], r["rule"]))
+    return {
+        "rows": rows,
+        "total": len(entries),
+        "window_days": window_days,
+        "first": entries[0].get("at", "")[:10] if entries else None,
+    }
+
+
+def stats(window_days=30):
+    entries = _entries()
+    if not entries:
         print("No history yet. Correct a few messages first.")
         return
-    entries = []
-    for line in LOG.read_text().splitlines():
-        try:
-            entries.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    if not entries:
-        print("No history yet.")
-        return
-
-    counts = Counter(_rule_key(n) for e in entries for n in e.get("notes", []))
-    print(f"\n  {len(entries)} messages corrected, "
-          f"first on {entries[0]['at'][:10]}\n")
-    if not counts:
+    report = stats_report(entries, window_days=window_days)
+    print(f"\n  {report['total']} messages corrected, "
+          f"first on {report['first']}\n")
+    if not report["rows"]:
         print("  No grammar mistakes recorded. Either you are improving or the\n"
               "  model is being generous.\n")
         return
-    print("  Your most frequent mistakes:\n")
-    width = max(len(k) for k, _ in counts.most_common(8))
-    for rule, n in counts.most_common(8):
-        bar = "#" * min(n, 40)
-        print(f"    {rule:<{width}}  {n:>3}  {bar}")
+
+    rows = report["rows"][:8]
+    width = max(len(r["rule"]) for r in rows)
+    print(f"  {'':<{width}}  {'last ' + str(window_days) + 'd':>8}  before\n")
+    for r in rows:
+        bar = "#" * min(r["recent"], 30)
+        mark = "  fixed" if r["improved"] else ""
+        print(f"  {r['rule']:<{width}}  {r['recent']:>8}  {r['older']:>6}  "
+              f"{bar}{mark}")
+    fixed = [r["rule"] for r in report["rows"] if r["improved"]]
+    if fixed:
+        print(f"\n  Not seen in the last {window_days} days: {len(fixed)} "
+              f"rule{'s' if len(fixed) > 1 else ''} you used to break.")
     print(f"\n  Full history: {LOG}\n")
+
+
+def _print_last():
+    entry = last_correction()
+    if not entry:
+        if not LOG_TEXT:
+            print("Message text is not being logged (CRISP_ENGLISH_LOG_TEXT=0), so there\n"
+                  "is no previous correction to show.", file=sys.stderr)
+            return 1
+        print("No history yet.", file=sys.stderr)
+        return 1
+    print(f"\n  {entry['at']}  ·  written for: {entry.get('tone', 'default')}\n")
+    # Labels that do not carry the product name, so they stay aligned through
+    # the next rename. "crisp sent:" lined up with "you wrote :"; the rename
+    # made it "crisp-english sent:" and the column went with it.
+    print(f"  you wrote : {entry['original']}")
+    print(f"  corrected : {entry.get('fix', '')}")
+    if entry.get("notes"):
+        print(f"\n  rules you broke: {' | '.join(entry['notes'])}")
+    print()
+    return 0
 
 
 def main(argv):
@@ -453,6 +722,8 @@ def main(argv):
     if argv[0] == "stats":
         stats()
         return 0
+    if argv[0] == "last":
+        return _print_last()
 
     as_json = "--json" in argv
     fast = "--fast" in argv
@@ -461,18 +732,19 @@ def main(argv):
     # because the long form is three extra words to type for the two audiences
     # that are not the default.
     tone = "default"
+    tone_given = False
     args, i = [], 0
     while i < len(argv):
         a = argv[i]
         if a in ("--json", "--fast"):
             pass
         elif a == "--tone" and i + 1 < len(argv):
-            tone = argv[i + 1]
+            tone, tone_given = argv[i + 1], True
             i += 1
         elif a.startswith("--tone="):
-            tone = a.split("=", 1)[1]
+            tone, tone_given = a.split("=", 1)[1], True
         elif a in ("--formal", "--brief"):
-            tone = a.lstrip("-")
+            tone, tone_given = a.lstrip("-"), True
         else:
             args.append(a)
         i += 1
@@ -482,11 +754,27 @@ def main(argv):
               f"{', '.join(TONES)}", file=sys.stderr)
         return 1
 
-    text = " ".join(args) if args else sys.stdin.read()
+    # `again` redoes the previous correction, optionally for another audience.
+    # The point is the second half: a message that came back too formal is one
+    # command away from the other register, without retyping it.
+    if args and args[0] == "again":
+        entry = last_correction()
+        if not entry:
+            print("No previous correction to redo." if LOG_TEXT else
+                  "Message text is not being logged (CRISP_ENGLISH_LOG_TEXT=0), so there\n"
+                  "is nothing to redo.", file=sys.stderr)
+            return 1
+        text = entry["original"]
+        if not tone_given:
+            tone = entry.get("tone", "default")
+            if tone not in TONES:
+                tone = "default"
+    else:
+        text = " ".join(args) if args else sys.stdin.read()
 
     try:
         r = correct(text, fast=fast, tone=tone)
-    except SaafError as e:
+    except CrispError as e:
         if as_json:
             print(json.dumps({"error": str(e)}))
         else:
