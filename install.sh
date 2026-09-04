@@ -387,7 +387,7 @@ cat <<EOF
 
 ${BOLD}Done.${RESET}
 
-  Look for a ${BOLD}◆${RESET} in your menu bar - that is crisp-english, and everything is set from there.
+  Look for a ${BOLD}A̲${RESET} in your menu bar - that is crisp-english, and everything is set from there.
   If it is missing, quit and reopen Hammerspoon.
 
   ${BOLD}Try it:${RESET} type a bad sentence anywhere, select it, press ${BOLD}⌥ Option + P${RESET}.
@@ -395,7 +395,7 @@ ${BOLD}Done.${RESET}
   ${BOLD}Lost the icon?${RESET} ${BOLD}⇧⌥ Shift + Option + P${RESET} toggles crisp-english on and off,
               and ${BOLD}crisp-englishctl${RESET} works from any terminal.
 
-  Guide:      open "$PROJECT/docs/how-to-use-crisp-english.pdf"
+  Guide:      open "$PROJECT/docs/how-to-use-crisp-english.html"
   Uninstall:  $PROJECT/install.sh --uninstall
 
 EOF

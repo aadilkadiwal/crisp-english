@@ -354,17 +354,17 @@
   <table class="keep">
     <thead><tr><th style="width:12%">Icon</th><th style="width:30%">Meaning</th><th>What to do</th></tr></thead>
     <tbody>
-      <tr><td style="font-size:15pt;text-align:center">◆</td>
+      <tr><td style="font-size:15pt;text-align:center">A̲</td>
           <td><strong>Ready</strong></td>
           <td>Nothing. Your next correction takes about a second and a half.</td></tr>
-      <tr><td style="font-size:15pt;text-align:center">◇</td>
+      <tr><td style="font-size:15pt;text-align:center">A</td>
           <td><strong>Awake, model asleep</strong></td>
           <td>Nothing, but the next correction will take ~30 seconds. Click the icon →
               <em>Wake it now</em> if you would rather not wait mid-sentence.</td></tr>
-      <tr><td style="font-size:15pt;text-align:center">◈</td>
+      <tr><td style="font-size:15pt;text-align:center">⋯</td>
           <td><strong>Working right now</strong></td>
           <td>Wait a moment. This is how you know a keystroke registered.</td></tr>
-      <tr><td style="font-size:15pt;text-align:center">○</td>
+      <tr><td style="font-size:15pt;text-align:center">⊘</td>
           <td><strong>Switched off</strong></td>
           <td>You turned crisp-english off. Click the icon → <em>Turn crisp-english on</em>.</td></tr>
       <tr><td style="text-align:center;color:var(--muted)">none</td>
@@ -430,7 +430,7 @@
   <div class="step">
     <div class="num">3</div>
     <div class="body">
-      <h3>Check for the ◆ in your menu bar</h3>
+      <h3>Check for the A̲ in your menu bar</h3>
       <p>
         That icon is your confirmation everything loaded, and it is where all the settings live. If it
         is not there, quit and reopen Hammerspoon. Then select a badly written sentence anywhere and
@@ -487,12 +487,12 @@
       <h3>Press ⌥ + P and wait about two seconds</h3>
       <p>
         Nothing appears over your work — no spinner, no popup. The only thing that moves is the menu
-        bar icon, which changes to <strong>◈</strong> while it thinks and back to <strong>◆</strong>
+        bar icon, which changes to <strong>⋯</strong> while it thinks and back to <strong>A̲</strong>
         when it is done.
       </p>
       <div class="note">
         <b>That icon is how you tell a working keystroke from a missed one.</b> If it never changes to
-        ◈, the keystroke did not reach crisp-english. If it sits on ◈ for a long time, the model was asleep and
+        ⋯, the keystroke did not reach crisp-english. If it sits on ⋯ for a long time, the model was asleep and
         is waking up — that takes about 30 seconds, once.
       </div>
     </div>
@@ -613,7 +613,7 @@ review it and let me know your feedback on the same</span></pre>
     <tbody>
       <tr><td><code>0 ms</code></td>
           <td>Hammerspoon catches <kbd>⌥P</kbd> before your app sees it. The icon turns
-              <strong>◈</strong>.</td>
+              <strong>⋯</strong>.</td>
           <td>This is why the key never types a <code>π</code>. If you see one, Hammerspoon is not
               running.</td></tr>
       <tr><td><code>0 ms</code></td>
@@ -645,7 +645,7 @@ review it and let me know your feedback on the same</span></pre>
           <td>Pasting rather than retyping is what makes <kbd>⌘Z</kbd> work — your app sees one
               ordinary paste, so one undo reverses it.</td></tr>
       <tr><td><code>~1.65 s</code></td>
-          <td>Your clipboard is restored again, the icon returns to <strong>◆</strong>, and the
+          <td>Your clipboard is restored again, the icon returns to <strong>A̲</strong>, and the
               correction is appended to <code>~/.crisp-english/mistakes.log</code>.</td>
           <td>That log is what <em>My frequent mistakes…</em> counts. It never leaves your Mac and you
               can delete it any time.</td></tr>
@@ -674,7 +674,7 @@ review it and let me know your feedback on the same</span></pre>
     restarting anything.
   </p>
 
-  <pre class="term"><span class="g">◆ crisp-english</span>
+  <pre class="term"><span class="g">A̲ crisp-english</span>
   <span class="c">─────────────────────────────</span>
   Turn crisp-english off
   <span class="c">─────────────────────────────</span>
@@ -1008,8 +1008,8 @@ review it and let me know your feedback on the same</span></pre>
   <div class="note">
     <b>Start with the icon.</b> Almost every problem is identified by what the menu bar shows before
     you check anything else. <strong>No icon</strong> → Hammerspoon is not running.
-    <strong>○</strong> → you turned crisp-english off. <strong>◇</strong> → it will work but slowly.
-    <strong>◆ that never changes to ◈ when you press ⌥P</strong> → the keystroke is not reaching crisp-english.
+    <strong>⊘</strong> → you turned crisp-english off. <strong>A</strong> → it will work but slowly.
+    <strong>A̲ that never changes to ⋯ when you press ⌥P</strong> → the keystroke is not reaching crisp-english.
   </div>
 
   <table>
@@ -1024,7 +1024,7 @@ review it and let me know your feedback on the same</span></pre>
             <em>When you cannot find the icon</em>.</td>
       </tr>
       <tr>
-        <td><strong>Icon shows <code>○</code></strong></td>
+        <td><strong>Icon shows <code>⊘</code></strong></td>
         <td>crisp-english is switched off. Click the icon → <em>Turn crisp-english on</em>, or just press
             <kbd>⇧ ⌥ P</kbd> from anywhere.</td>
       </tr>
@@ -1035,7 +1035,7 @@ review it and let me know your feedback on the same</span></pre>
             click the icon → <em>Reload crisp-english</em>.</td>
       </tr>
       <tr>
-        <td><strong>Icon flicked to <code>◈</code> and back, but the text did not change</strong></td>
+        <td><strong>Icon flicked to <code>⋯</code> and back, but the text did not change</strong></td>
         <td>It ran and found nothing to fix — your sentence was already correct. crisp-english leaves correct
             text alone rather than rewriting it for the sake of it.</td>
       </tr>
@@ -1051,10 +1051,10 @@ review it and let me know your feedback on the same</span></pre>
             reload the config.</td>
       </tr>
       <tr>
-        <td><strong>A correction takes ~30 seconds</strong><br><span style="color:var(--muted);font-size:8.8pt">icon was showing <code>◇</code></span></td>
+        <td><strong>A correction takes ~30 seconds</strong><br><span style="color:var(--muted);font-size:8.8pt">icon was showing <code>A</code></span></td>
         <td>The model was asleep and is being read off disk. Working as intended, just slow once —
             every correction after it is fast. Avoid it by clicking <em>Wake it now</em> whenever you
-            notice ◇, and by installing the background job from step&nbsp;4 of the setup page.</td>
+            notice A, and by installing the background job from step&nbsp;4 of the setup page.</td>
       </tr>
       <tr>
         <td><code>Model did not finish loading in 90s.</code></td>
