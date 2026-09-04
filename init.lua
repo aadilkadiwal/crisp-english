@@ -581,9 +581,9 @@ hs.hotkey.bind(HOTKEY_MODS, HOTKEY_KEY, correctSelection)
 local TOGGLE_MODS = { "alt", "shift" }
 local TOGGLE_KEY = "p"
 
--- Global for the same reason crispEnglishCorrect is: Hammerspoon will not fire its own
--- hotkeys from a synthetic event, so a binding is otherwise untestable except by
--- hand.  hs -c 'crispEnglishToggle()'
+-- Global, not local: Hammerspoon will not fire its own hotkeys from a synthetic
+-- event, so this is the only way to exercise the toggle without pressing the
+-- keys.  hs -c 'crispEnglishToggle()'
 function crispEnglishToggle()
   setEnabled(not state.enabled)
   -- Unconditional, unlike every other alert here, which respects
@@ -598,18 +598,6 @@ end
 
 hs.hotkey.bind(TOGGLE_MODS, TOGGLE_KEY, crispEnglishToggle)
 
--- Deliberately global, so the whole flow can be driven without a keypress:
---   hs -c 'crispEnglishCorrect()'
--- Hammerspoon does not fire its own hotkeys from synthetic events, so without
--- this the only way to exercise this file is by hand - which is why the design
--- doc lists the hotkey layer as untested. Now it can be scripted.
-crispEnglishCorrect = correctSelection
-
--- Exposed for the same reason as crispEnglishCorrect: this is what the alert says, and
--- it was silently saying nothing for the brief tone. A renderer nobody can call
--- is a renderer nobody can check.
---   hs -c 'crispEnglishState.summarize({changes={best={"a -> b"}}, tone="brief"})'
-state.summarize = summarize
 
 -- Same reasoning: lets the state be inspected and driven from a terminal, e.g.
 --   hs -c 'crispEnglishState.showAlerts = true'
@@ -661,10 +649,9 @@ state.audienceFor = audienceFor
 -- Stored on `state` rather than a file-local so it is reachable from the global
 -- crispEnglishState and cannot be garbage collected out from under us, which is the
 -- documented way Hammerspoon watchers quietly stop firing.
--- Named and hung on state rather than written inline, for the same reason
--- crispEnglishCorrect is global: a callback macOS alone can fire is a callback nobody
--- can test. Hammerspoon will not deliver a synthetic sleep event, so without
--- this the only way to exercise it would be to actually sleep the machine.
+-- Named and hung on state rather than written inline because Hammerspoon will
+-- not deliver a synthetic sleep event: without this, the only way to exercise it
+-- would be to actually sleep the machine.
 --   hs -c 'crispEnglishState.onSleep()'
 state.onSleep = function()
   ollama.unload(state)

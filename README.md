@@ -31,7 +31,7 @@ It is safe to re-run — every step checks before acting.
 Accessibility permission, and crisp-english needs it to press `⌘C` / `⌘V` for you. The installer
 opens the right pane; tick **Hammerspoon** in the list.
 
-Then look for **◆** in your menu bar.
+Then look for **A̲** in your menu bar.
 
 You do not need it, though — `⇧⌥P` toggles crisp-english on and off from anywhere, and
 `crisp-englishctl` is on your `PATH`.
@@ -42,11 +42,16 @@ To remove: `./install.sh --uninstall`
 
 | Icon | Meaning |
 |------|---------|
-| `◆` | Ready — next correction ~1.5s |
-| `◇` | Model asleep — next one ~30s (menu offers *Wake it now*) |
-| `◈` | Correcting right now |
-| `○` | Switched off |
+| `A̲` | Ready — next correction ~1.5s |
+| `A` | Model asleep — next one ~30s (menu offers *Wake it now*) |
+| `⋯` | Correcting right now |
+| `⊘` | Switched off |
 | *none* | Hammerspoon isn't running — **or macOS is hiding the icon behind the notch** |
+
+The underline is the whole vocabulary: macOS marks a word that needs attention by
+putting a line under it, and that line appearing under the `A` means crisp-english is
+warm and the next correction is fast. No colour — it would be unreadable at that size
+and invisible to some people.
 
 ### If the icon disappears
 
@@ -223,7 +228,7 @@ clipboard is borrowed for about half a second and handed straight back.
 | `crisp-englishctl` | Everything the menu does, from a terminal. |
 | `install.sh` | Installer / uninstaller. |
 | `voice.md` | How corrected text should sound, and the banned list `blocklist.py` implements. |
-| `docs/how-to-use-crisp-english.pdf` | Full guide, written for someone new to all of this. |
+| `docs/how-to-use-crisp-english.html` | Full guide, written for someone new to all of this. Open it in a browser. |
 
 ## Requirements
 

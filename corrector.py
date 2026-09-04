@@ -69,14 +69,13 @@ CONFIG = dict(read_config_file(PROJECT / "crisp-english.conf"))
 CONFIG.update(read_config_file(STATE_DIR / "crisp-english.conf"))
 
 
-def setting(key, default, files=None):
+def setting(key, default):
     """Environment beats the config files, which beat the built-in default.
 
-    An explicit None check rather than `or`, so CRISP_ENGLISH_LOG_TEXT=0 means 0 and not
-    "fall through to the default".
+    An explicit None check rather than `or`, so CRISP_ENGLISH_LOG_TEXT=0 means 0
+    and not "fall through to the default".
     """
-    files = CONFIG if files is None else files
-    for source in (os.environ, files):
+    for source in (os.environ, CONFIG):
         value = source.get(key)
         if value is not None and value != "":
             return value
@@ -628,7 +627,7 @@ def _rule_key(note):
     return re.sub(r"[:\-–].*$", "", note).strip()[:60] or "other"
 
 
-def stats_report(entries, now=None, window_days=30):
+def stats_report(entries, window_days=30):
     """Split each rule's count into recent and older. Pure; tested directly.
 
     A single all-time total cannot answer the question the log exists for. A rule
@@ -636,8 +635,7 @@ def stats_report(entries, now=None, window_days=30):
     feature built to show what you get wrong shows what you USED to get wrong.
     Two columns and a "fixed" marker turn the same data into a trend.
     """
-    now = time.time() if now is None else now
-    cutoff = now - window_days * 86400
+    cutoff = time.time() - window_days * 86400
     recent, older = Counter(), Counter()
     for entry in entries:
         try:

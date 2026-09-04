@@ -507,27 +507,25 @@ USER_WORDS_FILE = Path.home() / ".crisp-english" / "protect.txt"
 _user_words_cache = None
 
 
-def user_words(path=None):
+def user_words():
     """Words from the user's own dictionary. Empty list if there is no file."""
     global _user_words_cache
-    if path is None and _user_words_cache is not None:
+    if _user_words_cache is not None:
         return _user_words_cache
-    target = Path(path) if path else USER_WORDS_FILE
     words = []
     try:
-        for line in target.read_text().splitlines():
+        for line in USER_WORDS_FILE.read_text().splitlines():
             line = line.split("#", 1)[0].strip()
             if line:
                 words.append(line.lower())
     except OSError:
         words = []                    # no dictionary is the normal case
-    if path is None:
-        _user_words_cache = words
+    _user_words_cache = words
     return words
 
 
-def protected_words(path=None):
-    return PROTECTED_WORDS + user_words(path)
+def protected_words():
+    return PROTECTED_WORDS + user_words()
 
 
 def _edit_distance_one(a, b):
@@ -564,7 +562,7 @@ def _is_inflection(candidate, target):
             and candidate[-1].isalpha())
 
 
-def restore_mangled_words(original, corrected, protect_path=None):
+def restore_mangled_words(original, corrected):
     """Undo typos the model introduced into words it should not have touched.
 
     Measured: for a message ending in "thanks", the model returned "tanks" in 5
@@ -593,7 +591,7 @@ def restore_mangled_words(original, corrected, protect_path=None):
         return corrected
 
     kept = set(re.findall(r"[a-z]+", corrected.lower()))
-    guarded = [w for w in protected_words(protect_path)
+    guarded = [w for w in protected_words()
                if w in originals and w not in kept]
     if not guarded:
         return corrected              # nothing the writer wrote has gone missing

@@ -19,13 +19,40 @@ local ollama = require("ollama")
 
 local M = {}
 
--- Icon vocabulary. Deliberately four distinguishable glyphs rather than colour,
--- which is unreadable at menubar size and invisible to some people.
+-- Icon vocabulary.
+--
+-- Still four distinguishable glyphs rather than colour, which is unreadable at
+-- menubar size and invisible to some people. What changed is that they now say
+-- something: this was ○ ◇ ◆ ◈, a hollow-to-solid diamond family whose state
+-- logic was fine and whose meaning was nil. Nothing about a diamond suggests
+-- English, or text, or correction.
+--
+-- A letter, marked. macOS itself flags a word that needs attention by putting a
+-- line under it, so an underlined A is that idiom in a single character, and an
+-- A reads as "text" before it reads as anything else. The underline appearing is
+-- the ready signal - it is the mark the tool exists to make.
+--
+-- What was rejected, and why:
+--
+--   SF Symbols (textformat.abc.dottedunderline is literally the system's
+--     spell-check icon). hs.image.imageFromName in Hammerspoon 1.1.1 returns
+--     nil for every SF Symbol name tried; it resolves only classic NSImage
+--     names. Not available, rather than not wanted.
+--   A pencil (✎ asleep, ✏ ready). Measured at menu bar size the filled pencil
+--     renders as an unclear sideways shape. Good idea, bad glyph.
+--   ✅ and 🖋, which are colour emoji: they measure 39px against 29-33px for a
+--     text glyph, and colour is what this vocabulary avoids.
+--   "abc" with an underline, the honest version of the spell-check idiom, at
+--     43px. Too wide for a bar where macOS already hides the icon behind the
+--     notch given half a chance.
+--
+-- Widths measured in the real menu bar via bar:frame().w, since a glyph that
+-- falls back to emoji gets wider and that is how you find out.
 local ICON = {
-  disabled = "○",   -- off; the hotkey does nothing
-  cold     = "◇",   -- on, but the model is asleep: the next one takes ~30s
-  warm     = "◆",   -- on and hot: the next one takes ~1.5s
-  busy     = "◈",   -- correcting right now
+  disabled = "⊘",     -- off; the hotkey does nothing
+  cold     = "A",     -- on, but the model is asleep: the next one takes ~30s
+  warm     = "A̲",     -- on and hot: the next one takes ~1.5s (A + U+0332)
+  busy     = "⋯",     -- correcting right now
 }
 
 -- Who the message is going to. Names must match TONES in corrector.py.
